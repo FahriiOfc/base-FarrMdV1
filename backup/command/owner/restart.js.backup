@@ -1,0 +1,173 @@
+// command/owner/restart.js
+
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+export default {
+    name: 'restart',
+    aliases: ['reboot', 'pm2restart'],
+    category: 'owner',
+    description: 'Restart bot via PM2 from WhatsApp',
+    ownerOnly: true,
+
+    async execute(ctx) {
+        const { isOwner, sock, chat, sender, messageKey } = ctx;
+
+        if (!isOwner) {
+            console.log(`[RESTART] Blocked non-owner: ${sender}`);
+            return;
+        }
+
+        await ctx.react('⏳');
+
+        let statusMsgKey = null;
+
+        try {
+            // ============================================================
+            // CEK PM2 PROCESS
+            // ============================================================
+
+            const { stdout: listStdout } = await execAsync('pm2 list --no-color');
+            
+            let pm2Name = '';
+            const pm2Names = ['FarrMdV1', 'farr-md-v1', 'index', 'farrmd', 'farr-md'];
+            
+            for (const line of listStdout.split('\n')) {
+                for (const name of pm2Names) {
+                    if (line.includes(name) && line.includes('online')) {
+                        pm2Name = name;
+                        break;
+                    }
+                }
+                if (pm2Name) break;
+            }
+
+            if (!pm2Name) {
+                const folderName = 'FarrMdV1';
+                for (const line of listStdout.split('\n')) {
+                    if (line.includes(folderName) && line.includes('online')) {
+                        pm2Name = folderName;
+                        break;
+                    }
+                }
+            }
+
+            if (!pm2Name) {
+                await ctx.react('❌');
+                await ctx.reply(
+                    '❌ Tidak ada process PM2 yang ditemukan!\n\n' +
+                    '💡 Pastikan bot dijalankan dengan:\n' +
+                    'pm2 start index.js --name FarrMdV1'
+                );
+                return;
+            }
+
+            console.log(`[RESTART] Found PM2 process: ${pm2Name}`);
+
+            // ============================================================
+            // KIRIM PESAN STATUS
+            // ============================================================
+
+            const statusMsg = await ctx.reply(
+                `🔄 *Restarting bot...*\n\n` +
+                `📌 Process: ${pm2Name}\n` +
+                `⏳ Mohon tunggu 10-15 detik...`
+            );
+
+            // Simpan key untuk edit nanti
+            statusMsgKey = statusMsg.key;
+
+            // ============================================================
+            // RESTART VIA PM2
+            // ============================================================
+
+            console.log(`[RESTART] Executing: pm2 restart ${pm2Name}`);
+            const { stdout, stderr } = await execAsync(`pm2 restart ${pm2Name}`);
+            console.log('[RESTART] PM2 output:', stdout);
+
+            // ============================================================
+            // TUNGGU 8 DETIK AGAR BOT STABIL
+            // ============================================================
+
+            console.log('[RESTART] Waiting 8 seconds for bot to stabilize...');
+            await new Promise(resolve => setTimeout(resolve, 8000));
+
+            // ============================================================
+            // CEK STATUS SETELAH RESTART
+            // ============================================================
+
+            const { stdout: statusStdout } = await execAsync('pm2 list --no-color');
+            
+            let status = '🟢 online';
+            for (const line of statusStdout.split('\n')) {
+                if (line.includes(pm2Name)) {
+                    if (line.includes('online')) {
+                        status = '🟢 online';
+                    } else if (line.includes('stopped')) {
+                        status = '🔴 stopped';
+                    } else if (line.includes('errored')) {
+                        status = '🟠 errored';
+                    }
+                    break;
+                }
+            }
+
+            const timestamp = new Date().toLocaleString('id-ID', {
+                timeZone: 'Asia/Jakarta',
+                hour12: false
+            });
+
+            // ============================================================
+            // EDIT PESAN STATUS
+            // ============================================================
+
+            const successText = 
+                `✅ *Bot Restarted!*\n\n` +
+                `📌 Process: ${pm2Name}\n` +
+                `📊 Status: ${status}\n` +
+                `📅 ${timestamp}\n\n` +
+                `💡 Bot siap digunakan kembali.`;
+
+            try {
+                // Coba edit pesan
+                await sock.sendMessage(chat, {
+                    text: successText,
+                    edit: statusMsgKey
+                });
+                console.log('[RESTART] Message edited successfully');
+            } catch (editError) {
+                console.log('[RESTART] Edit failed:', editError.message);
+                
+                // Jika edit gagal, kirim pesan baru
+                try {
+                    await ctx.reply(successText);
+                    console.log('[RESTART] Sent new message as fallback');
+                } catch (sendError) {
+                    console.log('[RESTART] Send fallback failed:', sendError.message);
+                }
+            }
+
+            await ctx.react('✅');
+
+        } catch (error) {
+            console.error('[RESTART] Error:', error.message);
+            await ctx.react('❌');
+            
+            // Coba edit pesan status jika ada
+            if (statusMsgKey) {
+                try {
+                    await sock.sendMessage(chat, {
+                        text: `❌ *Restart Failed!*\n\nError: ${error.message}`,
+                        edit: statusMsgKey
+                    });
+                } catch (e) {
+                    await ctx.reply(`❌ Gagal restart: ${error.message}`);
+                }
+            } else {
+                await ctx.reply(`❌ Gagal restart: ${error.message}`);
+            }
+        }
+    }
+};
