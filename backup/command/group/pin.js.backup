@@ -1,0 +1,187 @@
+// command/group/pin.js
+// Pin a message - Debug Version
+
+export default {
+    name: 'pin',
+    aliases: [],
+    category: 'group',
+    description: 'Pin a message (reply to target)',
+    groupOnly: true,
+    adminOnly: true,
+    botAdmin: true,
+
+    async execute(ctx) {
+        const { sock, chat, quoted, args, sender, message, isOwner } = ctx;
+
+        await ctx.react('⏳');
+
+        // ============================================================
+        // 1. CEK APAKAH ADA PESAN YANG DI-REPLY
+        // ============================================================
+
+        if (!quoted) {
+            await ctx.react('❌');
+            return '❌ Reply ke pesan yang ingin dipin!';
+        }
+
+        // ============================================================
+        // 2. DEBUG: TAMPILKAN INFORMASI PESAN
+        // ============================================================
+
+        console.log('========== PIN DEBUG ==========');
+        console.log('[PIN] Chat:', chat);
+        console.log('[PIN] Sender:', sender);
+        console.log('[PIN] Quoted key:', JSON.stringify(quoted.key, null, 2));
+        console.log('[PIN] Quoted message:', JSON.stringify(quoted.message, null, 2));
+        console.log('[PIN] Quoted sender:', quoted.sender);
+        console.log('[PIN] Quoted text:', quoted.text);
+
+        // ============================================================
+        // 3. VALIDASI KEY PESAN
+        // ============================================================
+
+        if (!quoted.key || !quoted.key.id) {
+            await ctx.react('❌');
+            return '❌ Key pesan tidak valid!';
+        }
+
+        // ============================================================
+        // 4. PARSE DURASI
+        // ============================================================
+
+        let duration = 86400; // default 24 jam
+        const arg = args[0]?.toLowerCase() || '';
+
+        if (arg === '24h' || arg === '1d') {
+            duration = 86400;
+        } else if (arg === '7d') {
+            duration = 604800;
+        } else if (arg === '30d') {
+            duration = 2592000;
+        }
+
+        // ============================================================
+        // 5. BUILD PIN KEY (COBA BEBERAPA FORMAT)
+        // ============================================================
+
+        // FORMAT 1: Menggunakan quoted.key langsung
+        const pinKey1 = quoted.key;
+        
+        // FORMAT 2: Memastikan remoteJid
+        const pinKey2 = {
+            remoteJid: quoted.key.remoteJid || chat,
+            id: quoted.key.id,
+            fromMe: quoted.key.fromMe || false,
+            participant: quoted.key.participant || quoted.sender || chat
+        };
+
+        // FORMAT 3: Dari message key asli (bukan quoted)
+        const pinKey3 = message.key;
+
+        console.log('[PIN] Key format 1:', JSON.stringify(pinKey1, null, 2));
+        console.log('[PIN] Key format 2:', JSON.stringify(pinKey2, null, 2));
+        console.log('[PIN] Key format 3:', JSON.stringify(pinKey3, null, 2));
+
+        // ============================================================
+        // 6. COBA PIN DENGAN FORMAT 1 (LANGSUNG)
+        // ============================================================
+
+        try {
+            console.log('[PIN] Trying format 1 (quoted.key langsung)...');
+            
+            await sock.sendMessage(chat, {
+                pin: {
+                    key: pinKey1,
+                    type: 1,
+                    time: duration
+                }
+            });
+
+            console.log('[PIN] ✅ Format 1 SUCCESS!');
+            await ctx.react('✅');
+            
+            const durationText = arg || '24h';
+            return `📌 *Pesan Disematkan! (Format 1)*\n\n⏱️ Durasi: ${durationText}\n📋 Key ID: ${pinKey1.id}`;
+
+        } catch (error1) {
+            console.log('[PIN] ❌ Format 1 failed:', error1.message);
+            console.log('[PIN] Error details:', error1.stack);
+
+            // ============================================================
+            // 7. COBA PIN DENGAN FORMAT 2
+            // ============================================================
+
+            try {
+                console.log('[PIN] Trying format 2 (rebuilt key)...');
+                
+                await sock.sendMessage(chat, {
+                    pin: {
+                        key: pinKey2,
+                        type: 1,
+                        time: duration
+                    }
+                });
+
+                console.log('[PIN] ✅ Format 2 SUCCESS!');
+                await ctx.react('✅');
+                
+                const durationText = arg || '24h';
+                return `📌 *Pesan Disematkan! (Format 2)*\n\n⏱️ Durasi: ${durationText}\n📋 Key ID: ${pinKey2.id}`;
+
+            } catch (error2) {
+                console.log('[PIN] ❌ Format 2 failed:', error2.message);
+                console.log('[PIN] Error details:', error2.stack);
+
+                // ============================================================
+                // 8. COBA PIN DENGAN FORMAT 3 (MESSAGE KEY ASLI)
+                // ============================================================
+
+                try {
+                    console.log('[PIN] Trying format 3 (original message key)...');
+                    
+                    await sock.sendMessage(chat, {
+                        pin: {
+                            key: pinKey3,
+                            type: 1,
+                            time: duration
+                        }
+                    });
+
+                    console.log('[PIN] ✅ Format 3 SUCCESS!');
+                    await ctx.react('✅');
+                    
+                    const durationText = arg || '24h';
+                    return `📌 *Pesan Disematkan! (Format 3)*\n\n⏱️ Durasi: ${durationText}\n📋 Key ID: ${pinKey3.id}`;
+
+                } catch (error3) {
+                    console.log('[PIN] ❌ Format 3 failed:', error3.message);
+                    console.log('[PIN] Error details:', error3.stack);
+
+                    // ============================================================
+                    // 9. SEMUA GAGAL - TAMPILKAN ERROR DETAIL
+                    // ============================================================
+
+                    await ctx.react('❌');
+                    
+                    let errorMsg = '❌ Gagal menyematkan pesan.\n\n';
+                    errorMsg += `📋 *Debug Info:*\n`;
+                    errorMsg += `• Chat: ${chat}\n`;
+                    errorMsg += `• Key ID: ${pinKey1.id}\n`;
+                    errorMsg += `• FromMe: ${pinKey1.fromMe}\n`;
+                    errorMsg += `• Participant: ${pinKey1.participant || 'none'}\n\n`;
+                    
+                    if (error1.message?.includes('not-authorized') || error1.message?.includes('admin')) {
+                        errorMsg += '⚠️ Bot harus menjadi admin grup untuk menyematkan pesan.\n';
+                        errorMsg += '💡 Pastikan bot sudah di-promote menjadi admin.';
+                    } else if (error1.message?.includes('not-found')) {
+                        errorMsg += '⚠️ Pesan tidak ditemukan. Pastikan pesan masih ada di chat.';
+                    } else {
+                        errorMsg += `📌 Error: ${error1.message}`;
+                    }
+                    
+                    return errorMsg;
+                }
+            }
+        }
+    }
+};

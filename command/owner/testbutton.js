@@ -317,9 +317,15 @@ export default {
 
             summary += `\n💡 *Cara Pakai:*\n`;
             summary += `.testbutton buttons\n`;
+            summary += `.tbtn buttonsmedia\n`;
             summary += `.testbutton list\n`;
+            summary += `.testbutton template\n`;
             summary += `.testbutton nativeflow\n`;
+            summary += `.testbutton nativeflow_media`;
             summary += `.testbutton carousel\n`;
+            summary += `.testbutton poll\n`;
+            summary += `.testbutton quiz\n`;
+            summary += `.testbutton hybrid\n`;
             summary += `.testbutton all (semua)`;
 
             return summary;

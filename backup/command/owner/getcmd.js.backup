@@ -14,7 +14,7 @@ export default {
     name: 'getcmd',
     aliases: [],
     category: 'owner',
-    description: 'Get source code with interactive buttons',
+    description: 'Get source code with interactive menu',
     ownerOnly: true,
 
     async execute(ctx) {
@@ -28,7 +28,7 @@ export default {
         const filePath = args.join(' ') || '';
 
         // ============================================================
-        // MENU UTAMA (tanpa argumen)
+        // 1. JIKA TANPA ARGUMEN → MENU UTAMA (command/ atau lib/)
         // ============================================================
 
         if (!filePath) {
@@ -64,21 +64,93 @@ export default {
                 console.log('[GETCMD] Menu error:', error.message);
                 return (
                     `📄 *GETCMD*\n\n` +
-                    `.getcmd command/main/ping.js\n` +
-                    `.getcmd lib/media.js`
+                    `.getcmd command/\n` +
+                    `.getcmd lib/\n` +
+                    `.getcmd command/main/ping.js`
                 );
             }
         }
 
         // ============================================================
-        // JIKA ADA ARGUMEN → PROSES FILE
+        // 2. JIKA ARGUMEN ADALAH FOLDER (command/, lib/, command/main/)
         // ============================================================
 
-        const normalized = path.normalize(filePath);
+        // Normalisasi path
+        let targetPath = filePath;
+        if (!targetPath.endsWith('/') && !targetPath.includes('.')) {
+            targetPath = targetPath + '/';
+        }
+
+        const normalized = path.normalize(targetPath);
         const fullPath = path.resolve(PROJECT_ROOT, normalized);
 
         const isInCommand = fullPath.startsWith(COMMAND_DIR);
         const isInLib = fullPath.startsWith(LIB_DIR);
+
+        // ============================================================
+        // 2a. JIKA PATH ADALAH FOLDER → TAMPILKAN LIST
+        // ============================================================
+
+        if ((isInCommand || isInLib) && !fullPath.endsWith('.js')) {
+            try {
+                await fs.access(fullPath);
+                const stat = await fs.stat(fullPath);
+                
+                if (stat.isDirectory()) {
+                    await ctx.react('⏳');
+                    
+                    const entries = await fs.readdir(fullPath, { withFileTypes: true });
+                    const folders = [];
+                    const files = [];
+                    
+                    for (const entry of entries) {
+                        if (entry.isDirectory()) {
+                            folders.push(entry.name);
+                        } else if (entry.isFile() && entry.name.endsWith('.js')) {
+                            files.push(entry.name);
+                        }
+                    }
+                    
+                    folders.sort();
+                    files.sort();
+                    
+                    const relativePath = path.relative(PROJECT_ROOT, fullPath) || '.';
+                    let output = `📁 *${relativePath}/*\n`;
+                    output += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+                    
+                    if (folders.length > 0) {
+                        for (const folder of folders) {
+                            output += `📂 ${folder}/\n`;
+                            output += `   💡 .getcmd ${relativePath}/${folder}/\n\n`;
+                        }
+                    }
+                    
+                    if (files.length > 0) {
+                        for (const file of files) {
+                            output += `📄 ${file}\n`;
+                            output += `   💡 .getcmd ${relativePath}/${file}\n\n`;
+                        }
+                    }
+                    
+                    if (folders.length === 0 && files.length === 0) {
+                        output += '📂 (Kosong)';
+                    }
+                    
+                    output += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+                    output += `📊 Total: ${folders.length + files.length} items`;
+                    
+                    await ctx.react('✅');
+                    return output;
+                }
+            } catch (error) {
+                // Jika folder tidak ada, lanjut ke pengecekan file
+                console.log('[GETCMD] Not a directory:', error.message);
+            }
+        }
+
+        // ============================================================
+        // 2b. JIKA PATH ADALAH FILE → TAMPILKAN SOURCE
+        // ============================================================
 
         if (!isInCommand && !isInLib) {
             return '❌ Path harus di command/ atau lib/';
@@ -110,7 +182,7 @@ export default {
         const totalLines = source.split('\n').length;
 
         // ============================================================
-        // SIMPAN SESSION UNTUK BUTTON OUTPUT
+        // 3. SIMPAN SESSION UNTUK BUTTON OUTPUT
         // ============================================================
 
         const sessionId = `getcmd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -133,7 +205,7 @@ export default {
         });
 
         // ============================================================
-        // TAMPILKAN BUTTON OUTPUT (Text / File)
+        // 4. TAMPILKAN BUTTON OUTPUT (Text / File)
         // ============================================================
 
         const headerText = 

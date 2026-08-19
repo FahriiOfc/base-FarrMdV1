@@ -1,0 +1,109 @@
+// command/group/unpin.js
+// Unpin a message - Debug Version
+
+export default {
+    name: 'unpin',
+    aliases: [],
+    category: 'group',
+    description: 'Unpin a message (reply to target)',
+    groupOnly: true,
+    adminOnly: true,
+    botAdmin: true,
+
+    async execute(ctx) {
+        const { sock, chat, quoted, sender, message } = ctx;
+
+        await ctx.react('⏳');
+
+        // ============================================================
+        // 1. CEK APAKAH ADA PESAN YANG DI-REPLY
+        // ============================================================
+
+        if (!quoted) {
+            await ctx.react('❌');
+            return '❌ Reply ke pesan yang ingin dilepas pinnya!';
+        }
+
+        // ============================================================
+        // 2. DEBUG
+        // ============================================================
+
+        console.log('========== UNPIN DEBUG ==========');
+        console.log('[UNPIN] Chat:', chat);
+        console.log('[UNPIN] Quoted key:', JSON.stringify(quoted.key, null, 2));
+
+        // ============================================================
+        // 3. VALIDASI KEY
+        // ============================================================
+
+        if (!quoted.key || !quoted.key.id) {
+            await ctx.react('❌');
+            return '❌ Key pesan tidak valid!';
+        }
+
+        // ============================================================
+        // 4. BUILD UNPIN KEY
+        // ============================================================
+
+        const pinKey1 = quoted.key;
+        
+        const pinKey2 = {
+            remoteJid: quoted.key.remoteJid || chat,
+            id: quoted.key.id,
+            fromMe: quoted.key.fromMe || false,
+            participant: quoted.key.participant || quoted.sender || chat
+        };
+
+        console.log('[UNPIN] Key format 1:', JSON.stringify(pinKey1, null, 2));
+        console.log('[UNPIN] Key format 2:', JSON.stringify(pinKey2, null, 2));
+
+        // ============================================================
+        // 5. COBA UNPIN
+        // ============================================================
+
+        try {
+            console.log('[UNPIN] Trying format 1...');
+            
+            await sock.sendMessage(chat, {
+                pin: {
+                    key: pinKey1,
+                    type: 0
+                }
+            });
+
+            console.log('[UNPIN] ✅ SUCCESS!');
+            await ctx.react('✅');
+            return `📌 *Pesan Dilepas!*\n\n👤 Oleh: @${sender.split('@')[0]}`;
+
+        } catch (error1) {
+            console.log('[UNPIN] ❌ Format 1 failed:', error1.message);
+
+            try {
+                console.log('[UNPIN] Trying format 2...');
+                
+                await sock.sendMessage(chat, {
+                    pin: {
+                        key: pinKey2,
+                        type: 0
+                    }
+                });
+
+                console.log('[UNPIN] ✅ Format 2 SUCCESS!');
+                await ctx.react('✅');
+                return `📌 *Pesan Dilepas! (Format 2)*\n\n👤 Oleh: @${sender.split('@')[0]}`;
+
+            } catch (error2) {
+                console.log('[UNPIN] ❌ Format 2 failed:', error2.message);
+                await ctx.react('❌');
+                
+                let errorMsg = '❌ Gagal melepas pin.\n\n';
+                if (error1.message?.includes('not-authorized') || error1.message?.includes('admin')) {
+                    errorMsg += '⚠️ Bot harus menjadi admin grup untuk melepas pin.';
+                } else {
+                    errorMsg += `📌 Error: ${error1.message}`;
+                }
+                return errorMsg;
+            }
+        }
+    }
+};

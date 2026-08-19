@@ -1,4 +1,7 @@
 // command/group/unpin.js
+// Unpin a message - Final Fix
+
+import { normalizeJid } from '../../lib/identity.js';
 
 export default {
     name: 'unpin',
@@ -24,16 +27,35 @@ export default {
             return '❌ Key pesan tidak valid!';
         }
 
+        // ============================================================
+        // 1. NORMALISASI KEY
+        // ============================================================
+
+        let participant = quoted.key.participant || quoted.sender || chat;
+        
+        if (participant && participant.endsWith('@lid')) {
+            if (quoted.sender && !quoted.sender.endsWith('@lid')) {
+                participant = quoted.sender;
+            }
+        }
+
+        participant = normalizeJid(participant);
+        const remoteJid = normalizeJid(quoted.key.remoteJid || chat);
+
+        const pinKey = {
+            remoteJid: remoteJid,
+            id: quoted.key.id,
+            fromMe: quoted.key.fromMe || false,
+            participant: participant
+        };
+
+        console.log('[UNPIN] Final key:', JSON.stringify(pinKey, null, 2));
+
+        // ============================================================
+        // 2. KIRIM UNPIN
+        // ============================================================
+
         try {
-            const pinKey = {
-                remoteJid: quoted.key.remoteJid || chat,
-                id: quoted.key.id,
-                fromMe: quoted.key.fromMe || false,
-                participant: quoted.key.participant || quoted.sender || chat
-            };
-
-            console.log('[UNPIN] Unpinning message:', pinKey);
-
             await sock.sendMessage(chat, {
                 pin: {
                     key: pinKey,
@@ -42,12 +64,19 @@ export default {
             });
 
             await ctx.react('✅');
-            return '📌 *Pesan Dilepas!*\n\nSematkan pesan telah dilepas.';
+            return `📌 *Pesan Dilepas!*`;
 
         } catch (error) {
-            console.error('[UNPIN ERROR]', error.message);
+            console.error('[UNPIN] Error:', error.message);
             await ctx.react('❌');
-            return `❌ Gagal melepas pin: ${error.message}\n\nPastikan bot adalah admin grup.`;
+            
+            let errorMsg = '❌ Gagal melepas pin.\n\n';
+            if (error.message?.includes('not-authorized')) {
+                errorMsg += '⚠️ Bot harus menjadi admin grup.';
+            } else {
+                errorMsg += `Error: ${error.message}`;
+            }
+            return errorMsg;
         }
     }
 };
