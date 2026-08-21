@@ -10,6 +10,7 @@ const PROJECT_ROOT = path.dirname(path.dirname(__dirname));
 const COMMAND_DIR = path.join(PROJECT_ROOT, 'command');
 const LIB_DIR = path.join(PROJECT_ROOT, 'lib');
 const BACKUP_DIR = path.join(PROJECT_ROOT, 'backup');
+const SCRAPER_DIR = path.join(PROJECT_ROOT, 'scraper');
 
 export default {
     name: 'listcmd',
@@ -57,6 +58,11 @@ export default {
                         buttonId: 'listcmd_backup',
                         buttonText: { displayText: '💾 backup/' },
                         type: 1
+                    },
+                    {
+                        buttonId: 'listcmd_scraper',
+                        buttonText: { displayText: '📁 scraper/' },
+                        type: 1
                     }
                 ],
                 headerType: 1
@@ -72,7 +78,8 @@ export default {
                     `📂 *FILE EXPLORER*\n\n` +
                     `📁 command/  - .listcmd command/\n` +
                     `📁 lib/      - .listcmd lib/\n` +
-                    `💾 backup/   - .listcmd backup/`;
+                    `💾 backup/   - .listcmd backup/\n` +
+                    `📁 scraper/  - .listcmd scraper/`;
                 return fallback;
             }
         }
@@ -87,9 +94,10 @@ export default {
         const isInCommand = fullPath.startsWith(COMMAND_DIR);
         const isInLib = fullPath.startsWith(LIB_DIR);
         const isInBackup = fullPath.startsWith(BACKUP_DIR);
+        const isInScraper = fullPath.startsWith(SCRAPER_DIR);
 
-        if (!isInCommand && !isInLib && !isInBackup) {
-            return '❌ Hanya bisa akses: command/, lib/, atau backup/';
+        if (!isInCommand && !isInLib && !isInBackup && !isInScraper) {
+            return '❌ Hanya bisa akses: command/, lib/, backup/, atau scraper/';
         }
 
         try {
@@ -134,7 +142,7 @@ export default {
         otherFiles.sort();
 
         const relativePath = path.relative(PROJECT_ROOT, fullPath) || '.';
-        const isRoot = relativePath === 'command' || relativePath === 'lib' || relativePath === 'backup' || relativePath === '.';
+        const isRoot = relativePath === 'command' || relativePath === 'lib' || relativePath === 'backup' || relativePath === 'scraper' || relativePath === '.';
 
         let output = `📁 *${relativePath}/*\n`;
         output += `━━━━━━━━━━━━━━━━━━━━\n\n`;
@@ -176,6 +184,20 @@ export default {
         const total = folders.length + jsFiles.length + backupFiles.length + otherFiles.length;
         output += `━━━━━━━━━━━━━━━━━━━━\n`;
         output += `📊 Total: ${total} items`;
+
+        if (output.length > 4000) {
+            try {
+                await sock.sendMessage(chat, {
+                    document: Buffer.from(output, 'utf8'),
+                    fileName: `list_${relativePath.replace(/\//g, '_')}.txt`,
+                    mimetype: 'text/plain',
+                    caption: `📁 ${relativePath}/`
+                });
+                return '✅ Daftar dikirim sebagai file!';
+            } catch (error) {
+                return `❌ Gagal kirim file: ${error.message}`;
+            }
+        }
 
         return output;
     }

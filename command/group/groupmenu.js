@@ -95,6 +95,11 @@ export default {
             '┃ 🏞️ .getppgc\n' +
             '┃ 📌 .pin\n' +
             '┃ 📌 .unpin\n' +
+            '┃ 📝 .setdesc\n' +
+            '┃ 🗑️ .deldesc\n' +
+            '┃ 📄 .getdesc\n' +
+            '┃ ✏️ .rename\n' +
+            '┃ 🔄 .resetname\n' +
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
             '💡 Ketik .menu untuk menu utama'

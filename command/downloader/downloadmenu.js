@@ -77,12 +77,17 @@ export default {
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
             '╭━━━〔 📥 DOWNLOADER MENU 〕━━━╮\n' +
             '┃\n' +
-            '┃ 🎵 .ytmp3 <url>\n' +
-            '┃ 🎬 .ytmp4 <url> [format] [resolusi]\n' +
-            '┃ 🎵 .tiktok [tt] <url>\n' +
-            '┃ 📸 .ig <url>\n' +
-            '┃ 📹 .fb <url>\n' +
-            '┃ 📦 .github <url>\n' +
+            '┃ 🎵 .ytmp3\n' +
+            '┃ 🎬 .ytmp4\n' +
+            '┃ 🎵 .tiktok <url>\n' +
+            '┃ 📸 .igdl <url>\n' +
+            '┃ 📹 .fbdl <url>\n' +
+            '┃ 📦 .github\n' +
+            '┃ 🎯 .dl <url> [auto detect]\n' +
+            '┃ 🎬 .ytdl <url> [mp3/mp4]\n' +
+            '┃ 🐦 .twitterdl <url>\n' +
+            '┃ 📌 .pindl <url>\n' +
+            '┃ 📥 .downloadmenu\n' +
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
             '💡 Ketik .menu untuk menu utama'

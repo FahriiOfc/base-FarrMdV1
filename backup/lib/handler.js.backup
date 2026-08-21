@@ -1,5 +1,5 @@
 // lib/handler.js
-// Message Handler - Full Code with Listcmd & Getcmd Button Support
+// Message Handler - Full Code with Listcmd, Getcmd, Mute, Hidetag Support
 
 import config from '../config.js';
 import serializer from './serializer.js';
@@ -69,36 +69,31 @@ export class Handler {
                 return;
             }
 
-// ============================================================
-// MUTE CHECK - HAPUS PESAN + REACT KE USER
-// ============================================================
+            // ============================================================
+            // MUTE CHECK - HAPUS PESAN DARI USER YANG DIMUTE
+            // ============================================================
 
-if (jid.endsWith('@g.us') && !message.key.fromMe) {
-    const muteSender = this.getSender(message);
-    
-    if (database.isMuted(jid, muteSender)) {
-        console.log(`[MUTE] 💀 Menghapus pesan dari ${muteSender} di ${jid}`);
-        
-        const sock = global.sock || message.sock;
-        if (sock) {
-            try {
-                // HAPUS PESAN
-                await sock.sendMessage(jid, { delete: message.key });
-                console.log('[MUTE] ✅ Pesan berhasil dihapus');
+            if (jid.endsWith('@g.us') && !message.key.fromMe) {
+                const muteSender = this.getSender(message);
                 
-                // KIRIM REACTION 🔇 KE PESAN YANG DIHAPUS (tapi pesan sudah dihapus, jadi kita kirim ke chat)
-                // Alternatif: kirim pesan sistem ke grup (tapi nanti spam)
-                // Lebih baik: react ke pesan command mute (di luar sini)
-                
-            } catch (deleteError) {
-                console.log('[MUTE] ❌ Gagal hapus:', deleteError.message);
+                if (database.isMuted(jid, muteSender)) {
+                    console.log(`[MUTE] 💀 Menghapus pesan dari ${muteSender} di ${jid}`);
+                    
+                    const sock = global.sock || message.sock;
+                    if (sock) {
+                        try {
+                            await sock.sendMessage(jid, { delete: message.key });
+                            console.log('[MUTE] ✅ Pesan berhasil dihapus');
+                        } catch (deleteError) {
+                            console.log('[MUTE] ❌ Gagal hapus:', deleteError.message);
+                        }
+                    }
+                    
+                    // ⛔ LANGSUNG RETURN - JANGAN PROSES LEBIH LANJUT
+                    return;
+                }
             }
-        }
-        
-        // ⛔ LANGSUNG RETURN - JANGAN PROSES LEBIH LANJUT
-        return;
-    }
-}
+
             // ============================================================
             // SERIALIZE MESSAGE
             // ============================================================
@@ -437,30 +432,31 @@ if (jid.endsWith('@g.us') && !message.key.fromMe) {
                 ctx.text = parsed.text;
                 ctx.commandName = parsed.command;
             }
-// ============================================================
-// SELF MODE CHECK + MUTE CHECK UNTUK COMMAND
-// ============================================================
 
-const mode = settings.getValue('mode');
+            // ============================================================
+            // SELF MODE CHECK + MUTE CHECK UNTUK COMMAND
+            // ============================================================
 
-// CEK APAKAH SENDER DI-MUTE (TIDAK BISA PAKAI COMMAND)
-if (jid.endsWith('@g.us') && !message.key.fromMe) {
-    const cmdSender = this.getSender(message);
-    if (database.isMuted(jid, cmdSender)) {
-        console.log(`[MUTE] ⛔ Blocked command from muted user: ${cmdSender}`);
-        // HAPUS PESAN COMMAND
-        try {
-            await sock.sendMessage(jid, { delete: message.key });
-        } catch (e) {}
-        return; // LANGSUNG RETURN
-    }
-}
+            const mode = settings.getValue('mode');
 
-// SELF MODE CHECK
-if (mode === 'self' && !ctx.isOwner && !message.key.fromMe) {
-    console.log(`[SELF] Blocked command from ${sender}`);
-    return;
-}
+            // CEK APAKAH SENDER DI-MUTE (TIDAK BISA PAKAI COMMAND)
+            if (jid.endsWith('@g.us') && !message.key.fromMe) {
+                const cmdSender = this.getSender(message);
+                if (database.isMuted(jid, cmdSender)) {
+                    console.log(`[MUTE] ⛔ Blocked command from muted user: ${cmdSender}`);
+                    try {
+                        await sock.sendMessage(jid, { delete: message.key });
+                    } catch (e) {}
+                    return;
+                }
+            }
+
+            // SELF MODE CHECK
+            if (mode === 'self' && !ctx.isOwner && !message.key.fromMe) {
+                console.log(`[SELF] Blocked command from ${sender}`);
+                return;
+            }
+
             // ============================================================
             // FIND COMMAND
             // ============================================================
@@ -485,7 +481,7 @@ if (mode === 'self' && !ctx.isOwner && !message.key.fromMe) {
             }
 
             // ============================================================
-            // EXECUTE COMMAND
+            // EXECUTE COMMAND - SUPPORT STRING ATAU OBJECT
             // ============================================================
 
             console.log(`[CMD] ${cmd.name} | ${sender}`);
@@ -493,9 +489,25 @@ if (mode === 'self' && !ctx.isOwner && !message.key.fromMe) {
             try {
                 const result = await cmd.execute(ctx);
 
+                // CASE 1: String response
                 if (typeof result === 'string' && result.length > 0) {
                     await ctx.reply(result);
                 }
+                
+                // CASE 2: Object response dengan text/mentions
+                else if (result && typeof result === 'object') {
+                    const text = result.text || result.message || '';
+                    const mentions = result.mentions || [];
+                    
+                    if (text) {
+                        await ctx.send({
+                            text: text,
+                            mentions: mentions
+                        });
+                    }
+                }
+                
+                // CASE 3: Command sudah kirim sendiri (return void/undefined)
 
             } catch (error) {
                 console.error(`[CMD ERROR] ${cmd.name}:`, error.message);

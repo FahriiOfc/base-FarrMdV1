@@ -33,7 +33,7 @@ export default {
                 ptt: true
             });
             await ctx.react('✅');
-            return '✅ Selesai!';
+            return;
         } catch (error) {
             await ctx.react('❌');
             return `❌ ${error.message || 'Gagal mengubah ke voice note'}`;

@@ -137,6 +137,11 @@ export default {
             '┃ 🏞️ .getppgc\n' +
             '┃ 📌 .pin\n' +
             '┃ 📌 .unpin\n' +
+            '┃ 📝 .setdesc\n' +
+            '┃ 🗑️ .deldesc\n' +
+            '┃ 📄 .getdesc\n' +
+            '┃ ✏️ .rename\n' +
+            '┃ 🔄 .resetname\n' +
             '┃ 👥 .groupmenu\n' +
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
@@ -156,19 +161,37 @@ export default {
             '┃\n' +
             '┃ 🎵 .ytmp3\n' +
             '┃ 🎬 .ytmp4\n' +
-            '┃ 🎵 .tiktok\n' +
-            '┃ 📸 .ig\n' +
-            '┃ 📹 .fb\n' +
+            '┃ 🎵 .tiktok <url>\n' +
+            '┃ 📸 .igdl <url>\n' +
+            '┃ 📹 .fbdl <url>\n' +
             '┃ 📦 .github\n' +
+            '┃ 🎯 .dl <url> [auto detect]\n' +
+            '┃ 🎬 .ytdl <url> [mp3/mp4]\n' +
+            '┃ 🐦 .twitterdl <url>\n' +
+            '┃ 📌 .pindl <url>\n' +
             '┃ 📥 .downloadmenu\n' +
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
 
-            '╭━━━〔 🛠️ TOOLS MENU 〕━━━╮\n' +
+            '╭━━━〔 🖼️ IMAGE & TOOLS 〕━━━╮\n' +
             '┃\n' +
-            '┃ 🖼️ .brat\n' +
-            '┃ 📸 .ssweb\n' +
-            '┃ 🛠️ .toolsmenu\n' +
+            '┃ ✂️ .removebg (reply gambar)\n' +
+            '┃ 🔍 .upscale (reply gambar)\n' +
+            '┃ 🔄 .mconvert <target> (reply file)\n' +
+            '┃ 📧 .tempmail <create/inbox>\n' +
+            '┃ 🖼️ .brat <teks>\n' +
+            '┃ 📸 .ssweb <url>\n' +
+            '┃ 🌐 .google <query>\n' +
+            '┃ 🖼️ .wallpaper <query>\n' +
+            '┃\n' +
+            '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
+
+            '╭━━━〔 🤖 AI CHAT MENU 〕━━━╮\n' +
+            '┃\n' +
+            '┃ 💬 .claude <pesan>\n' +
+            '┃ 💬 .gpt5 <pesan>\n' +
+            '┃ 💬 .unlimitedai [karakter] <pesan>\n' +
+            '┃    └─ karakter: ourin, kobo, waguri, jokowi, prabowo\n' +
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
 

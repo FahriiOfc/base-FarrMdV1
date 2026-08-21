@@ -120,9 +120,14 @@ export default {
                                 description: 'Command grup'
                             },
                             {
-                                title: '🛠️ Tools Menu',
+                                title: '🛠️ Image & Tools Menu',
                                 rowId: '.toolsmenu',
                                 description: 'Brat, SSWeb & lainnya'
+                            },
+                            {
+                                title: ' 🤖 AI CHAT MENU',
+                                rowId: '.aimenu',
+                                description: 'claude, gpt5 & lainnya'
                             }
                         ]
                     }
@@ -151,6 +156,7 @@ export default {
                 '┃ 5️⃣ .stickermenu - Sticker Menu\n' +
                 '┃ 6️⃣ .groupmenu - Group Menu\n' +
                 '┃ 7️⃣ .toolsmenu - Tools Menu\n' +
+                '┃ 8️⃣ .aimenu - Ai Chat Menu\n' +
                 '┃\n' +
                 '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
                 '💡 Ketik salah satu command di atas';

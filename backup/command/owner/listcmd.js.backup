@@ -28,14 +28,16 @@ export default {
 
         let targetPath = args.join(' ') || '';
 
-        // Jika tanpa argumen, tampilkan menu utama
+        // ============================================================
+        // MENU UTAMA (tanpa argumen)
+        // ============================================================
+
         if (!targetPath) {
             await ctx.react('⏳');
 
             const headerText = 
                 `📂 *FILE EXPLORER*\n\n` +
-                `📁 Pilih direktori yang ingin dilihat:\n` +
-                `━━━━━━━━━━━━━━━━━━━━`;
+                `📌 Pilih direktori yang ingin dilihat:`;
 
             const buttonMessage = {
                 text: headerText,
@@ -66,7 +68,6 @@ export default {
                 return;
             } catch (error) {
                 console.log('[LISTCMD] Button error:', error.message);
-                // Fallback ke text biasa
                 const fallback = 
                     `📂 *FILE EXPLORER*\n\n` +
                     `📁 command/  - .listcmd command/\n` +
