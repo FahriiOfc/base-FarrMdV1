@@ -75,10 +75,16 @@ export default {
             `┃ ⏱️ ${formatRuntime(process.uptime())}\n` +
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
-            '╭━━━〔 🛠️ TOOLS MENU 〕━━━╮\n' +
+            '╭━━━〔 🖼️ IMAGE & TOOLS MENU 〕━━━╮\n' +
             '┃\n' +
-            '┃ 🖼️ .brat [bs, qc] <teks>\n' +
-            '┃ 📸 .ssweb [ss, screenshot] <url>\n' +
+            '┃ ✂️ .removebg (reply gambar)\n' +
+            '┃ 🔍 .upscale (reply gambar)\n' +
+            '┃ 🔄 .mconvert <target> (reply file)\n' +
+            '┃ 📧 .tempmail <create/inbox>\n' +
+            '┃ 🖼️ .brat <teks>\n' +
+            '┃ 📸 .ssweb <url>\n' +
+            '┃ 🌐 .google <query>\n' +
+            '┃ 🖼️ .wallpaper <query>\n' +
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
             '💡 Ketik .menu untuk menu utama';

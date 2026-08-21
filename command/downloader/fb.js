@@ -1,56 +1,55 @@
 // command/downloader/fb.js
+// Download Facebook
 
-import downloader from '../../lib/downloader.js';
+import { fbdown } from '../../scraper/fbdown.js';
 
 export default {
     name: 'fb',
-    aliases: ['facebook'],
+    aliases: ['fbdl'],
     category: 'downloader',
-    description: 'Download Facebook video',
+    description: 'Download Facebook',
 
     async execute(ctx) {
-        const { sock, chat } = ctx;
-        let url = ctx.text || ctx.args.join(' ') || '';
+        const { sock, chat, args, quoted } = ctx;
 
-        if (!url && ctx.quoted?.text) {
-            url = ctx.quoted.text;
+        let url = args[0] || quoted?.text || '';
+        const urlMatch = url.match(/(https?:\/\/[^\s]+)/i);
+        if (urlMatch) {
+            url = urlMatch[0];
         }
 
-        if (url) {
-            const urlMatch = url.match(/(https?:\/\/[^\s]+)/i);
-            if (urlMatch) {
-                url = urlMatch[0];
-            }
-        }
-
-        if (!url) {
+        if (!url || !url.includes('facebook.com') && !url.includes('fb.watch')) {
             return (
-                '❌ Masukkan URL!\n\n' +
-                '📥 *Cara penggunaan:*\n' +
-                '`.fb <url>` atau `.facebook <url>`\n\n' +
-                'Contoh:\n' +
-                '`.fb https://www.facebook.com/xxx`'
+                '❌ Masukkan URL Facebook!\n\n' +
+                '📌 Contoh: .fbdl https://fb.watch/xxx'
             );
         }
 
         await ctx.react('⏳');
 
         try {
-            const result = await downloader.facebook(url);
+            const result = await fbdown(url);
             
-            if (!result) {
+            if (!result?.status) {
                 await ctx.react('❌');
                 return '❌ Gagal mengunduh. Coba URL lain.';
             }
 
+            const videoUrl = result.HD || result.Normal_video;
+            if (!videoUrl) {
+                await ctx.react('❌');
+                return '❌ Tidak ada video ditemukan.';
+            }
+
             await sock.sendMessage(chat, {
-                video: { url: result.video },
+                video: { url: videoUrl },
                 caption: `📹 ${result.title || 'Facebook Video'}`
             });
 
             await ctx.react('✅');
-            return '✅ Selesai!';
+            return;
         } catch (error) {
+            console.error('[FBDL] Error:', error.message);
             await ctx.react('❌');
             return `❌ ${error.message || 'Gagal mengunduh'}`;
         }

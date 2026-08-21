@@ -1,63 +1,59 @@
 // command/downloader/ig.js
+// Download Instagram
 
-import downloader from '../../lib/downloader.js';
+import instagramDownloader from '../../scraper/ig.js';
 
 export default {
     name: 'ig',
-    aliases: ['instagram'],
+    aliases: ['igdl'],
     category: 'downloader',
-    description: 'Download Instagram content',
+    description: 'Download Instagram',
 
     async execute(ctx) {
-        const { sock, chat } = ctx;
-        let url = ctx.text || ctx.args.join(' ') || '';
+        const { sock, chat, args, quoted } = ctx;
 
-        if (!url && ctx.quoted?.text) {
-            url = ctx.quoted.text;
+        let url = args[0] || quoted?.text || '';
+        const urlMatch = url.match(/(https?:\/\/[^\s]+)/i);
+        if (urlMatch) {
+            url = urlMatch[0];
         }
 
-        if (url) {
-            const urlMatch = url.match(/(https?:\/\/[^\s]+)/i);
-            if (urlMatch) {
-                url = urlMatch[0];
-            }
-        }
-
-        if (!url) {
+        if (!url || !url.includes('instagram.com')) {
             return (
-                '❌ Masukkan URL!\n\n' +
-                '📥 *Cara penggunaan:*\n' +
-                '`.ig <url>` atau `.instagram <url>`\n\n' +
-                'Contoh:\n' +
-                '`.ig https://www.instagram.com/p/xxx`'
+                '❌ Masukkan URL Instagram!\n\n' +
+                '📌 Contoh: .igdl https://www.instagram.com/p/xxx'
             );
         }
 
         await ctx.react('⏳');
 
         try {
-            const result = await downloader.instagram(url);
+            const result = await instagramDownloader(url);
             
-            if (!result) {
+            if (!result?.media || result.media.length === 0) {
                 await ctx.react('❌');
                 return '❌ Gagal mengunduh. Coba URL lain.';
             }
 
-            if (result.type === 'video') {
-                await sock.sendMessage(chat, {
-                    video: { url: result.media },
-                    caption: `📸 ${result.caption || 'Instagram'}`
-                });
-            } else {
-                await sock.sendMessage(chat, {
-                    image: { url: result.media },
-                    caption: `📸 ${result.caption || 'Instagram'}`
-                });
+            await ctx.react('✅');
+
+            for (const media of result.media) {
+                if (media.type === 'video') {
+                    await sock.sendMessage(chat, {
+                        video: { url: media.url },
+                        caption: `📸 ${result.username || 'Instagram'}`
+                    });
+                } else {
+                    await sock.sendMessage(chat, {
+                        image: { url: media.url },
+                        caption: `📸 ${result.username || 'Instagram'}`
+                    });
+                }
             }
 
-            await ctx.react('✅');
-            return '✅ Selesai!';
+            return;
         } catch (error) {
+            console.error('[IGDL] Error:', error.message);
             await ctx.react('❌');
             return `❌ ${error.message || 'Gagal mengunduh'}`;
         }

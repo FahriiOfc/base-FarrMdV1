@@ -33,7 +33,7 @@ export default {
                 fileName: 'audio.mp3'
             });
             await ctx.react('✅');
-            return '✅ Selesai!';
+            return;
         } catch (error) {
             await ctx.react('❌');
             return `❌ ${error.message || 'Gagal mengubah ke MP3'}`;

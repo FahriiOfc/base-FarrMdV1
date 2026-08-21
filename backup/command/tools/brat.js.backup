@@ -1,0 +1,64 @@
+// command/tools/brat.js
+
+import axios from 'axios';
+import media from '../../lib/media.js';
+
+export default {
+    name: 'brat',
+    aliases: ['bs', 'qc'],
+    category: 'tools',
+    description: 'Generate brat sticker with text',
+
+    async execute(ctx) {
+        const { sock, chat } = ctx;
+        let textInput = ctx.text || ctx.args.join(' ') || '';
+
+        if (!textInput && ctx.quoted?.text) {
+            textInput = ctx.quoted.text;
+        }
+
+        if (!textInput || textInput.trim().length === 0) {
+            return (
+                '❌ Masukkan teks untuk dibuat sticker brat!\n\n' +
+                'Contoh:\n' +
+                '.brat halo bos\n' +
+                '(reply ke pesan juga bisa)'
+            );
+        }
+
+        await ctx.react('⏳');
+
+        try {
+            const bratUrl = `https://api.zaxiusaja.xyz/maker/brat?text=${encodeURIComponent(textInput)}`;
+            console.log(`[BRAT] Fetching from API: ${bratUrl}`);
+
+            const response = await axios.get(bratUrl, {
+                responseType: 'arraybuffer',
+                timeout: 30000
+            });
+
+            if (!response.data || response.status !== 200) {
+                throw new Error('API gagal mengembalikan gambar.');
+            }
+
+            const pngBuffer = Buffer.from(response.data);
+            const webpBuffer = await media.toSticker(pngBuffer);
+
+            if (!webpBuffer || webpBuffer.length === 0) {
+                throw new Error('Gagal mengkonversi ke stiker.');
+            }
+
+            await sock.sendMessage(chat, {
+                sticker: webpBuffer,
+                mimetype: 'image/webp'
+            });
+
+            await ctx.react('✅');
+            return;
+        } catch (error) {
+            console.error('[BRAT] Error:', error.message);
+            await ctx.react('❌');
+            return `🛑 Gagal membuat sticker brat.\n\nError: ${error.message}`;
+        }
+    }
+};

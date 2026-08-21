@@ -1,10 +1,17 @@
 // lib/media.js
-// Media Processing - Full Stable with Better Detection
+// Media Processing - FIXED VERSION
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+
+// ============================================================
+// SET FFMPEG PATH
+// ============================================================
+
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,7 +39,7 @@ function cleanupTempFiles(pattern) {
 }
 
 // ============================================================
-// DETECT FILE TYPE - SUPER ROBUST
+// DETECT FILE TYPE
 // ============================================================
 
 function detectFileTypeSync(buffer) {
@@ -40,56 +47,75 @@ function detectFileTypeSync(buffer) {
     
     const hex = buffer.slice(0, 12).toString('hex').toLowerCase();
     const ascii = buffer.slice(0, 12).toString('ascii');
-    
-    console.log('[MEDIA] Detect - hex:', hex.slice(0, 16));
-    console.log('[MEDIA] Detect - ascii:', ascii);
 
-    // PNG
-    if (hex.startsWith('89504e47')) {
-        return { ext: 'png', mime: 'image/png' };
-    }
-    // JPEG
-    if (hex.startsWith('ffd8ff')) {
-        return { ext: 'jpg', mime: 'image/jpeg' };
-    }
-    // GIF
-    if (hex.startsWith('47494638')) {
-        return { ext: 'gif', mime: 'image/gif' };
-    }
-    // WEBP
-    if (hex.startsWith('52494646') && ascii.slice(8, 12) === 'WEBP') {
-        return { ext: 'webp', mime: 'image/webp' };
-    }
-    // BMP
-    if (hex.startsWith('424d')) {
-        return { ext: 'bmp', mime: 'image/bmp' };
-    }
-    // MP4
-    if (hex.startsWith('000000') && ascii.slice(4, 8) === 'ftyp') {
-        return { ext: 'mp4', mime: 'video/mp4' };
-    }
-    // MP3 (ID3)
-    if (hex.startsWith('494433')) {
-        return { ext: 'mp3', mime: 'audio/mpeg' };
-    }
-    // OGG
-    if (hex.startsWith('4f676753')) {
-        return { ext: 'ogg', mime: 'audio/ogg' };
-    }
-    // WAV
-    if (hex.startsWith('52494646') && ascii.slice(8, 12) === 'WAVE') {
-        return { ext: 'wav', mime: 'audio/wav' };
-    }
-    // M4A / AAC
-    if (hex.startsWith('000000') && ascii.slice(4, 8) === 'ftyp') {
-        return { ext: 'm4a', mime: 'audio/mp4' };
-    }
+    if (hex.startsWith('89504e47')) return { ext: 'png', mime: 'image/png' };
+    if (hex.startsWith('ffd8ff')) return { ext: 'jpg', mime: 'image/jpeg' };
+    if (hex.startsWith('47494638')) return { ext: 'gif', mime: 'image/gif' };
+    if (hex.startsWith('52494646') && ascii.slice(8, 12) === 'WEBP') return { ext: 'webp', mime: 'image/webp' };
+    if (hex.startsWith('424d')) return { ext: 'bmp', mime: 'image/bmp' };
+    if (hex.startsWith('000000') && ascii.slice(4, 8) === 'ftyp') return { ext: 'mp4', mime: 'video/mp4' };
+    if (hex.startsWith('494433')) return { ext: 'mp3', mime: 'audio/mpeg' };
+    if (hex.startsWith('4f676753')) return { ext: 'ogg', mime: 'audio/ogg' };
+    if (hex.startsWith('52494646') && ascii.slice(8, 12) === 'WAVE') return { ext: 'wav', mime: 'audio/wav' };
     
     return null;
 }
 
 // ============================================================
-// TO STICKER - DENGAN FALLBACK KE JPEG
+// DETEKSI ANIMATED WEBP - LEBIH AKURAT
+// ============================================================
+
+function isAnimatedWebP(buffer) {
+    if (!buffer || buffer.length < 20) return false;
+    try {
+        const isRiff = buffer.slice(0, 4).toString('ascii') === 'RIFF';
+        const isWebp = buffer.slice(8, 12).toString('ascii') === 'WEBP';
+        if (!isRiff || !isWebp) return false;
+        // CEK ANIM ATAU ANMF (ANMF = Animated Frame)
+        const hasAnim = buffer.includes(Buffer.from('ANIM'));
+        const hasAnmf = buffer.includes(Buffer.from('ANMF'));
+        return hasAnim || hasAnmf;
+    } catch (e) {
+        return false;
+    }
+}
+
+// ============================================================
+// EKSTRAK DURASI - LEBIH ROBUST
+// ============================================================
+
+function extractAnimDuration(buffer) {
+    try {
+        // Cari ANIM chunk
+        let animIndex = buffer.indexOf('ANIM');
+        if (animIndex === -1) {
+            // Cari ANMF chunk (alternatif)
+            animIndex = buffer.indexOf('ANMF');
+            if (animIndex === -1) return null;
+            // ANMF: 4 byte 'ANMF' + 4 byte size + 2 byte frame count + 2 byte duration
+            const durationOffset = animIndex + 12;
+            if (buffer.length < durationOffset + 2) return null;
+            const durMs = buffer.readUInt16LE(durationOffset);
+            if (durMs > 0 && durMs < 30000) {
+                return durMs / 1000;
+            }
+            return null;
+        }
+        // ANIM: 4 byte 'ANIM' + 4 byte size + 4 byte duration (little endian)
+        const durationOffset = animIndex + 12;
+        if (buffer.length < durationOffset + 4) return null;
+        const durMs = buffer.readUInt32LE(durationOffset);
+        if (durMs > 0 && durMs < 30000) {
+            return durMs / 1000;
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// ============================================================
+// TO STICKER - FIXED
 // ============================================================
 
 export async function toSticker(buffer, options = {}) {
@@ -107,18 +133,12 @@ export async function toSticker(buffer, options = {}) {
             throw new Error('Buffer kosong atau tidak valid');
         }
 
-        // ============================================================
-        // DETEKSI FORMAT
-        // ============================================================
-
         let type = detectFileTypeSync(buffer);
         
         if (!type) {
             console.log('[MEDIA] Format tidak dikenali, coba treat sebagai JPEG...');
-            // Coba tulis sebagai JPEG dan konversi
             const inputFile = `${tempFile}.jpg`;
             fs.writeFileSync(inputFile, buffer);
-            console.log('[MEDIA] Written as JPG, size:', fs.statSync(inputFile).size);
             
             await new Promise((resolve, reject) => {
                 ffmpeg(inputFile)
@@ -128,34 +148,23 @@ export async function toSticker(buffer, options = {}) {
                         '-q:v', '80'
                     ])
                     .output(outputFile)
-                    .on('start', (cmd) => console.log('[MEDIA] FFmpeg (fallback):', cmd))
-                    .on('end', () => { console.log('[MEDIA] Sticker success (fallback)'); resolve(); })
-                    .on('error', (err) => { console.error('[MEDIA] FFmpeg error:', err.message); reject(err); })
+                    .on('end', () => resolve())
+                    .on('error', (err) => reject(err))
                     .run();
             });
 
             const stickerBuffer = fs.readFileSync(outputFile);
             cleanupTempFiles(cleanupPattern);
-            console.log('[MEDIA] Sticker size:', stickerBuffer.length);
             return stickerBuffer;
         }
 
         console.log('[MEDIA] Detected:', type.ext, type.mime);
 
-        // ============================================================
-        // TULIS FILE INPUT
-        // ============================================================
-
         const inputFile = `${tempFile}.${type.ext}`;
         fs.writeFileSync(inputFile, buffer);
-        console.log('[MEDIA] Input file size:', fs.statSync(inputFile).size);
 
-        // ============================================================
         // IMAGE → STICKER
-        // ============================================================
-
         if (type.mime.startsWith('image/')) {
-            console.log('[MEDIA] Converting image to sticker...');
             await new Promise((resolve, reject) => {
                 ffmpeg(inputFile)
                     .outputOptions([
@@ -164,20 +173,14 @@ export async function toSticker(buffer, options = {}) {
                         '-q:v', '80'
                     ])
                     .output(outputFile)
-                    .on('start', (cmd) => console.log('[MEDIA] FFmpeg (image):', cmd))
-                    .on('end', () => { console.log('[MEDIA] Image to sticker success'); resolve(); })
-                    .on('error', (err) => { console.error('[MEDIA] FFmpeg error:', err.message); reject(err); })
+                    .on('end', () => resolve())
+                    .on('error', (err) => reject(err))
                     .run();
             });
         }
 
-        // ============================================================
-        // VIDEO → STICKER
-        // ============================================================
-
+        // VIDEO → STICKER (FIXED)
         else if (type.mime.startsWith('video/')) {
-            console.log('[MEDIA] Converting video to sticker...');
-
             let duration = 0;
             try {
                 const probe = await new Promise((resolve, reject) => {
@@ -187,43 +190,42 @@ export async function toSticker(buffer, options = {}) {
                     });
                 });
                 duration = probe?.format?.duration || 0;
-                console.log('[MEDIA] Video duration:', duration, 'seconds');
+                console.log('[MEDIA] Video duration:', duration);
             } catch (probeError) {
-                console.log('[MEDIA] Cannot probe duration:', probeError.message);
+                console.log('[MEDIA] Cannot probe duration');
             }
 
             const maxDuration = 10;
             let inputToUse = inputFile;
 
             if (duration > maxDuration) {
-                console.log(`[MEDIA] Trimming to ${maxDuration}s...`);
                 const trimmedFile = `${tempFile}_trimmed.mp4`;
                 await new Promise((resolve, reject) => {
                     ffmpeg(inputFile)
                         .outputOptions(['-t', String(maxDuration)])
                         .output(trimmedFile)
-                        .on('start', (cmd) => console.log('[MEDIA] Trim:', cmd))
-                        .on('end', () => { console.log('[MEDIA] Trim complete'); resolve(); })
+                        .on('end', () => resolve())
                         .on('error', (err) => reject(err))
                         .run();
                 });
                 inputToUse = trimmedFile;
             }
 
+            // PERBAIKAN: Tambahkan -vsync 0 dan -c:v libwebp
             await new Promise((resolve, reject) => {
                 ffmpeg(inputToUse)
                     .outputOptions([
-                        '-vf', 'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0',
-                        '-r', '15',
+                        '-vf', 'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0,fps=15',
                         '-c:v', 'libwebp',
                         '-q:v', '80',
                         '-loop', '0',
+                        '-vsync', '0',  // ← PENTING: biar ga freeze
                         '-an'
                     ])
                     .output(outputFile)
-                    .on('start', (cmd) => console.log('[MEDIA] FFmpeg (video):', cmd))
-                    .on('end', () => { console.log('[MEDIA] Video to sticker success'); resolve(); })
-                    .on('error', (err) => { console.error('[MEDIA] FFmpeg error:', err.message); reject(err); })
+                    .on('start', (cmd) => console.log('[MEDIA] FFmpeg:', cmd))
+                    .on('end', () => resolve())
+                    .on('error', (err) => reject(err))
                     .run();
             });
 
@@ -231,41 +233,23 @@ export async function toSticker(buffer, options = {}) {
                 try { if (fs.existsSync(inputToUse)) fs.unlinkSync(inputToUse); } catch (e) {}
             }
         } else {
-            // FALLBACK: coba sebagai JPEG
-            console.log('[MEDIA] Unknown format, trying as JPEG...');
-            const jpgFile = `${tempFile}.jpg`;
-            fs.writeFileSync(jpgFile, buffer);
-            
-            await new Promise((resolve, reject) => {
-                ffmpeg(jpgFile)
-                    .outputOptions([
-                        '-vf', 'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0',
-                        '-c:v', 'libwebp',
-                        '-q:v', '80'
-                    ])
-                    .output(outputFile)
-                    .on('start', (cmd) => console.log('[MEDIA] FFmpeg (fallback2):', cmd))
-                    .on('end', () => { console.log('[MEDIA] Sticker success (fallback2)'); resolve(); })
-                    .on('error', (err) => { console.error('[MEDIA] FFmpeg error:', err.message); reject(err); })
-                    .run();
-            });
+            throw new Error('Format tidak didukung');
         }
 
         const stickerBuffer = fs.readFileSync(outputFile);
-        console.log('[MEDIA] Sticker result size:', stickerBuffer.length);
+        console.log('[MEDIA] Sticker size:', stickerBuffer.length);
         cleanupTempFiles(cleanupPattern);
-        console.log('[MEDIA] ===== END toSticker =====');
         return stickerBuffer;
 
     } catch (error) {
-        console.error('[MEDIA] Sticker error:', error.message);
+        console.error('[STICKER] Error:', error.message);
         cleanupTempFiles(cleanupPattern);
         throw error;
     }
 }
 
 // ============================================================
-// FUNGSI LAINNYA (toImage, toVideo, toMP3, toVoiceNote)
+// TO IMAGE
 // ============================================================
 
 export async function toImage(buffer) {
@@ -277,11 +261,7 @@ export async function toImage(buffer) {
     const cleanupPattern = `image_${timestamp}`;
 
     try {
-        console.log('[MEDIA] Starting image conversion...');
-
-        if (!buffer || buffer.length === 0) {
-            throw new Error('Buffer kosong atau tidak valid');
-        }
+        if (!buffer || buffer.length === 0) throw new Error('Buffer kosong');
 
         const isWebP = buffer.slice(0, 4).toString('ascii') === 'RIFF' &&
                        buffer.slice(8, 12).toString('ascii') === 'WEBP';
@@ -295,9 +275,8 @@ export async function toImage(buffer) {
         await new Promise((resolve, reject) => {
             ffmpeg(inputFile)
                 .output(outputFile)
-                .on('start', (cmd) => console.log('[MEDIA] FFmpeg command:', cmd))
-                .on('end', () => { console.log('[MEDIA] Image conversion success'); resolve(); })
-                .on('error', (err) => { console.error('[MEDIA] FFmpeg error:', err.message); reject(err); })
+                .on('end', () => resolve())
+                .on('error', (err) => reject(err))
                 .run();
         });
 
@@ -306,11 +285,14 @@ export async function toImage(buffer) {
         return imageBuffer;
 
     } catch (error) {
-        console.error('[MEDIA] ToImage error:', error.message);
         cleanupTempFiles(cleanupPattern);
         throw error;
     }
 }
+
+// ============================================================
+// TO VIDEO - FIXED
+// ============================================================
 
 export async function toVideo(buffer) {
     ensureTempDir();
@@ -321,11 +303,15 @@ export async function toVideo(buffer) {
     const cleanupPattern = `video_${timestamp}`;
 
     try {
-        console.log('[MEDIA] Starting video conversion...');
+        console.log('[MEDIA] ===== START toVideo =====');
 
         if (!buffer || buffer.length === 0) {
             throw new Error('Buffer kosong atau tidak valid');
         }
+
+        // ============================================================
+        // 1. VALIDASI WEBP
+        // ============================================================
 
         const isWebP = buffer.slice(0, 4).toString('ascii') === 'RIFF' &&
                        buffer.slice(8, 12).toString('ascii') === 'WEBP';
@@ -335,83 +321,128 @@ export async function toVideo(buffer) {
             throw new Error('File bukan WebP yang valid');
         }
 
-        const isAnimated = buffer.slice(12, 16).toString('ascii') === 'ANIM';
-        console.log('[MEDIA] Animated WebP:', isAnimated);
+        // ============================================================
+        // 2. DETEKSI ANIMATED & DURASI
+        // ============================================================
 
-        fs.writeFileSync(inputFile, buffer);
+        const isAnimated = isAnimatedWebP(buffer);
+        console.log('[MEDIA] Is animated WebP:', isAnimated);
 
-        try {
-            await new Promise((resolve, reject) => {
-                const ffmpegCmd = ffmpeg(inputFile)
-                    .inputOptions(['-f', 'webp']);
+        let duration = 3; // default static
+        let durationSource = 'default';
 
-                if (isAnimated) {
-                    ffmpegCmd.inputOptions(['-loop', '0']);
-                }
-
-                ffmpegCmd
-                    .outputOptions([
-                        '-c:v', 'libx264',
-                        '-pix_fmt', 'yuv420p',
-                        '-movflags', '+faststart',
-                        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2'
-                    ])
-                    .output(outputFile)
-                    .on('start', (cmd) => console.log('[MEDIA] FFmpeg command:', cmd))
-                    .on('end', () => { console.log('[MEDIA] Direct conversion success'); resolve(); })
-                    .on('error', (err) => { console.log('[MEDIA] Direct conversion failed:', err.message); reject(err); })
-                    .run();
-            });
-
-            const videoBuffer = fs.readFileSync(outputFile);
-            cleanupTempFiles(cleanupPattern);
-            return videoBuffer;
-
-        } catch (directError) {
-            console.log('[MEDIA] Direct conversion failed:', directError.message);
-
-            try {
-                console.log('[MEDIA] Trying fallback: Sharp → PNG → MP4...');
-                const sharp = (await import('sharp')).default;
-                const pngFile = `${tempFile}.png`;
-
-                await sharp(buffer).png().toFile(pngFile);
-                console.log('[MEDIA] Sharp WebP→PNG success');
-
-                await new Promise((resolve, reject) => {
-                    ffmpeg(pngFile)
-                        .inputOptions(['-loop', '1', '-t', '3'])
-                        .outputOptions([
-                            '-c:v', 'libx264',
-                            '-pix_fmt', 'yuv420p',
-                            '-movflags', '+faststart'
-                        ])
-                        .output(outputFile)
-                        .on('start', (cmd) => console.log('[MEDIA] PNG→MP4 command:', cmd))
-                        .on('end', () => { console.log('[MEDIA] PNG to MP4 success'); resolve(); })
-                        .on('error', (err) => { console.log('[MEDIA] PNG→MP4 failed:', err.message); reject(err); })
-                        .run();
-                });
-
-                try { if (fs.existsSync(pngFile)) fs.unlinkSync(pngFile); } catch (e) {}
-
-                const videoBuffer = fs.readFileSync(outputFile);
-                cleanupTempFiles(cleanupPattern);
-                return videoBuffer;
-
-            } catch (fallbackError) {
-                console.log('[MEDIA] Fallback failed:', fallbackError.message);
-                cleanupTempFiles(cleanupPattern);
-                throw new Error('Gagal konversi sticker ke video.');
+        if (isAnimated) {
+            const animDuration = extractAnimDuration(buffer);
+            if (animDuration && animDuration > 0) {
+                // Maksimal 10 detik untuk video
+                duration = Math.min(animDuration, 10);
+                durationSource = 'ANIM chunk';
+                console.log('[MEDIA] Duration from ANIM:', duration, 's');
             }
         }
 
+        // Fallback: probe
+        if (duration === 3 || !isAnimated) {
+            try {
+                fs.writeFileSync(inputFile, buffer);
+                const probe = await new Promise((resolve, reject) => {
+                    ffmpeg.ffprobe(inputFile, (err, metadata) => {
+                        if (err) reject(err);
+                        else resolve(metadata);
+                    });
+                });
+                if (probe?.format?.duration && probe.format.duration > 0) {
+                    const probeDuration = Math.min(probe.format.duration, 10);
+                    if (probeDuration > 0.5) {
+                        duration = probeDuration;
+                        durationSource = 'ffprobe';
+                        console.log('[MEDIA] Duration from ffprobe:', duration, 's');
+                    }
+                }
+            } catch (probeError) {
+                console.log('[MEDIA] Probe failed:', probeError.message);
+            }
+        }
+
+        console.log('[MEDIA] Final duration:', duration, 's (source:', durationSource, ')');
+
+        // ============================================================
+        // 3. TULIS FILE INPUT
+        // ============================================================
+
+        fs.writeFileSync(inputFile, buffer);
+
+        // ============================================================
+        // 4. KONVERSI KE MP4
+        // ============================================================
+
+        await new Promise((resolve, reject) => {
+            const cmd = ffmpeg(inputFile)
+                .inputOptions(['-f', 'webp']);
+
+            if (isAnimated) {
+                // ANIMATED: loop 0, durasi sesuai
+                cmd.inputOptions(['-loop', '0']);
+                cmd.outputOptions([
+                    '-c:v', 'libx264',
+                    '-pix_fmt', 'yuv420p',
+                    '-movflags', '+faststart',
+                    '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+                    '-vsync', '0',  // ← PENTING
+                    '-t', String(duration)
+                ]);
+            } else {
+                // STATIC: loop 1, durasi 3 detik
+                cmd.inputOptions(['-loop', '1']);
+                cmd.outputOptions([
+                    '-c:v', 'libx264',
+                    '-pix_fmt', 'yuv420p',
+                    '-movflags', '+faststart',
+                    '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+                    '-t', '3'
+                ]);
+            }
+
+            cmd
+                .output(outputFile)
+                .on('start', (cmdLine) => {
+                    console.log('[MEDIA] FFmpeg:', cmdLine);
+                })
+                .on('end', () => {
+                    console.log('[MEDIA] Video success');
+                    resolve();
+                })
+                .on('error', (err) => {
+                    console.error('[MEDIA] FFmpeg error:', err.message);
+                    reject(err);
+                })
+                .run();
+        });
+
+        // ============================================================
+        // 5. BACA HASIL
+        // ============================================================
+
+        if (!fs.existsSync(outputFile)) {
+            throw new Error('File output tidak ditemukan');
+        }
+
+        const videoBuffer = fs.readFileSync(outputFile);
+        console.log('[MEDIA] Video size:', videoBuffer.length, 'bytes');
+
+        cleanupTempFiles(cleanupPattern);
+        return videoBuffer;
+
     } catch (error) {
-        console.error('[MEDIA] ToVideo error:', error.message);
+        console.error('[MEDIA] toVideo error:', error.message);
         cleanupTempFiles(cleanupPattern);
         throw error;
     }
 }
+
+// ============================================================
+// TO MP3
+// ============================================================
 
 export async function toMP3(buffer) {
     ensureTempDir();
@@ -422,25 +453,16 @@ export async function toMP3(buffer) {
     const cleanupPattern = `audio_${timestamp}`;
 
     try {
-        console.log('[MEDIA] Starting MP3 conversion...');
-
-        if (!buffer || buffer.length === 0) {
-            throw new Error('Buffer kosong atau tidak valid');
-        }
+        if (!buffer || buffer.length === 0) throw new Error('Buffer kosong');
 
         fs.writeFileSync(inputFile, buffer);
 
         await new Promise((resolve, reject) => {
             ffmpeg(inputFile)
-                .outputOptions([
-                    '-vn',
-                    '-acodec', 'libmp3lame',
-                    '-b:a', '128k'
-                ])
+                .outputOptions(['-vn', '-acodec', 'libmp3lame', '-b:a', '128k'])
                 .output(outputFile)
-                .on('start', (cmd) => console.log('[MEDIA] FFmpeg command:', cmd))
-                .on('end', () => { console.log('[MEDIA] MP3 conversion success'); resolve(); })
-                .on('error', (err) => { console.error('[MEDIA] FFmpeg error:', err.message); reject(err); })
+                .on('end', () => resolve())
+                .on('error', (err) => reject(err))
                 .run();
         });
 
@@ -449,11 +471,14 @@ export async function toMP3(buffer) {
         return audioBuffer;
 
     } catch (error) {
-        console.error('[MEDIA] ToMP3 error:', error.message);
         cleanupTempFiles(cleanupPattern);
         throw error;
     }
 }
+
+// ============================================================
+// TO VOICE NOTE
+// ============================================================
 
 export async function toVoiceNote(buffer) {
     ensureTempDir();
@@ -463,32 +488,20 @@ export async function toVoiceNote(buffer) {
     const cleanupPattern = `vn_${timestamp}`;
 
     try {
-        console.log('[MEDIA] Starting voice note conversion...');
+        if (!buffer || buffer.length === 0) throw new Error('Buffer kosong');
 
-        if (!buffer || buffer.length === 0) {
-            throw new Error('Buffer kosong atau tidak valid');
-        }
-
+        // Deteksi format
         let detectedExt = 'mp3';
-        let isDetected = false;
-
         try {
             const fileType = (await import('file-type')).default;
             const result = await fileType.fromBuffer(buffer);
             if (result && result.mime.startsWith('audio/')) {
                 detectedExt = result.ext;
-                isDetected = true;
-                console.log('[MEDIA] Detected format:', result.ext, result.mime);
             }
         } catch (e) {
-            console.log('[MEDIA] Gagal deteksi format, pakai default mp3');
-        }
-
-        if (!isDetected) {
             const type = detectFileTypeSync(buffer);
             if (type && type.mime.startsWith('audio/')) {
                 detectedExt = type.ext;
-                console.log('[MEDIA] Manual detected:', type.ext);
             }
         }
 
@@ -515,8 +528,8 @@ export async function toVoiceNote(buffer) {
                     '-application', 'lowdelay'
                 ])
                 .output(outputFile)
-                .on('start', (cmdLine) => console.log('[MEDIA] FFmpeg command:', cmdLine))
-                .on('end', () => { console.log('[MEDIA] Voice note conversion success'); resolve(); })
+                .on('start', (cmdLine) => console.log('[MEDIA] FFmpeg:', cmdLine))
+                .on('end', () => { console.log('[MEDIA] Voice note success'); resolve(); })
                 .on('error', (err) => { console.error('[MEDIA] FFmpeg error:', err.message); reject(err); })
                 .run();
         });
@@ -537,7 +550,7 @@ export async function toVoiceNote(buffer) {
         return vnBuffer;
 
     } catch (error) {
-        console.error('[MEDIA] ToVoiceNote error:', error.message);
+        console.error('[MEDIA] toVoiceNote error:', error.message);
         cleanupTempFiles(cleanupPattern);
         return buffer;
     }
