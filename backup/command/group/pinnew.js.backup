@@ -1,0 +1,97 @@
+// command/group/pinnew.js
+// Kirim pesan baru lalu langsung di-pin
+
+export default {
+    name: 'pinnew',
+    aliases: ['pinmsg'],
+    category: 'group',
+    description: 'Kirim pesan baru dan langsung pin',
+    groupOnly: true,
+    adminOnly: true,
+    botAdmin: true,
+
+    async execute(ctx) {
+        const { sock, chat, args } = ctx;
+
+        await ctx.react('⏳');
+
+        // ============================================================
+        // 1. CEK TEKS
+        // ============================================================
+
+        const text = args.join(' ') || '📌 *Pesan Disematkan*';
+        if (!text) {
+            await ctx.react('❌');
+            return '❌ Masukkan teks pesan yang ingin dipin!';
+        }
+
+        // ============================================================
+        // 2. PARSE DURASI
+        // ============================================================
+
+        let duration = 86400;
+        const arg = args[0]?.toLowerCase() || '';
+        let cleanText = text;
+
+        if (arg === '24h' || arg === '1d') {
+            duration = 86400;
+            cleanText = args.slice(1).join(' ') || '📌 *Pesan Disematkan*';
+        } else if (arg === '7d') {
+            duration = 604800;
+            cleanText = args.slice(1).join(' ') || '📌 *Pesan Disematkan*';
+        } else if (arg === '30d') {
+            duration = 2592000;
+            cleanText = args.slice(1).join(' ') || '📌 *Pesan Disematkan*';
+        }
+
+        // ============================================================
+        // 3. KIRIM PESAN BARU
+        // ============================================================
+
+        try {
+            // Kirim pesan
+            const sentMsg = await sock.sendMessage(chat, {
+                text: cleanText
+            });
+
+            console.log('[PINNEW] Sent message:', JSON.stringify(sentMsg.key, null, 2));
+
+            // ============================================================
+            // 4. PIN PESAN YANG BARU DIKIRIM
+            // ============================================================
+
+            const pinKey = {
+                remoteJid: sentMsg.key.remoteJid,
+                id: sentMsg.key.id,
+                fromMe: true,
+                participant: sentMsg.key.participant || chat
+            };
+
+            console.log('[PINNEW] Pinning key:', JSON.stringify(pinKey, null, 2));
+
+            await sock.sendMessage(chat, {
+                pin: {
+                    key: pinKey,
+                    type: 1,
+                    time: duration
+                }
+            });
+
+            const durationText = arg || '24h';
+            await ctx.react('✅');
+            return `📌 *Pesan Disematkan!*\n\n📝 ${cleanText}\n⏱️ Durasi: ${durationText}\n\n💡 Pesan baru telah dikirim dan dipin.`;
+
+        } catch (error) {
+            console.error('[PINNEW] Error:', error.message);
+            await ctx.react('❌');
+            
+            let errorMsg = '❌ Gagal menyematkan pesan.\n\n';
+            if (error.message?.includes('not-authorized') || error.message?.includes('admin')) {
+                errorMsg += '⚠️ Bot harus menjadi admin grup.';
+            } else {
+                errorMsg += `Error: ${error.message}`;
+            }
+            return errorMsg;
+        }
+    }
+};

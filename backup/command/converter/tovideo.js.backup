@@ -1,0 +1,31 @@
+export default {
+    name: 'tovideo',
+    aliases: [],
+    category: 'converter',
+    description: 'Convert sticker to video',
+    async execute(ctx) {
+        const { sock, chat } = ctx;
+        const mediaBuffer = await ctx.getMediaFromMessage?.();
+        if (!mediaBuffer) {
+            return '❌ Reply ke sticker yang ingin diubah menjadi video.';
+        }
+        await ctx.react('⏳');
+        try {
+            const { toVideo } = await import('../../lib/media.js');
+            const videoBuffer = await toVideo(mediaBuffer);
+            if (!videoBuffer || videoBuffer.length === 0) {
+                await ctx.react('❌');
+                return '❌ Gagal mengubah sticker ke video.';
+            }
+            await sock.sendMessage(chat, {
+                video: videoBuffer,
+                caption: '✅ Berhasil diubah menjadi video'
+            });
+            await ctx.react('✅');
+        } catch (error) {
+            console.error('[TOVIDEO] Error:', error.message);
+            await ctx.react('❌');
+            return '❌ Gagal mengubah ke video.';
+        }
+    }
+};

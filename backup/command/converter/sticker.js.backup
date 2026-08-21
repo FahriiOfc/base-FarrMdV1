@@ -1,0 +1,28 @@
+export default {
+    name: 'sticker',
+    aliases: ['s'],
+    category: 'converter',
+    description: 'Convert image/video to sticker',
+    async execute(ctx) {
+        const { sock, chat } = ctx;
+        const mediaBuffer = await ctx.getMediaFromMessage?.();
+        if (!mediaBuffer) {
+            return '❌ Kirim gambar/video atau reply ke media yang ingin dijadikan sticker.';
+        }
+        await ctx.react('⏳');
+        try {
+            const { toSticker } = await import('../../lib/media.js');
+            const stickerBuffer = await toSticker(mediaBuffer);
+            if (!stickerBuffer || stickerBuffer.length === 0) {
+                await ctx.react('❌');
+                return '❌ Gagal membuat sticker. Pastikan file adalah gambar atau video.';
+            }
+            await sock.sendMessage(chat, { sticker: stickerBuffer });
+            await ctx.react('✅');
+        } catch (error) {
+            console.error('[STICKER] Error:', error.message);
+            await ctx.react('❌');
+            return '❌ Gagal membuat sticker.';
+        }
+    }
+};

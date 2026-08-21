@@ -1,0 +1,54 @@
+// command/downloader/dl.js
+import { aiodl } from '../../scraper/aio.js';
+
+export default {
+    name: 'dl',
+    aliases: ['download', 'dl'],
+    category: 'downloader',
+    description: 'Download dari berbagai platform (auto detect)',
+
+    async execute(ctx) {
+        const { sock, chat, args, quoted } = ctx;
+        let url = args.join(' ') || quoted?.text || '';
+        if (!url) {
+            return (
+                '❌ Masukkan URL!\n\n' +
+                '📌 *Support:* Instagram, YouTube, TikTok, Facebook, Pinterest, CapCut, Twitter, Threads, Reddit\n\n' +
+                '📌 Contoh: .dl https://www.instagram.com/p/xxx'
+            );
+        }
+        const urlMatch = url.match(/(https?:\/\/[^\s]+)/i);
+        if (urlMatch) url = urlMatch[0];
+        await ctx.react('⏳');
+        try {
+            const result = await aiodl(url);
+            if (!result || !result.media || result.media.length === 0) {
+                await ctx.react('❌');
+                return '❌ Gagal mengunduh. Coba URL lain.';
+            }
+            await ctx.react('✅');
+            const media = result.media[0];
+            if (media.type === 'video') {
+                await sock.sendMessage(chat, {
+                    video: { url: media.url },
+                    caption: `📥 *${result.platform || 'Download'}*\n📝 ${result.title || ''}`
+                });
+            } else if (media.type === 'image') {
+                await sock.sendMessage(chat, {
+                    image: { url: media.url },
+                    caption: `📥 *${result.platform || 'Download'}*\n📝 ${result.title || ''}`
+                });
+            } else if (media.type === 'audio') {
+                await sock.sendMessage(chat, {
+                    audio: { url: media.url },
+                    mimetype: 'audio/mpeg'
+                });
+            }
+            return '✅ Selesai!';
+        } catch (error) {
+            console.error('[DL] Error:', error.message);
+            await ctx.react('❌');
+            return `❌ ${error.message || 'Gagal mengunduh'}`;
+        }
+    }
+};

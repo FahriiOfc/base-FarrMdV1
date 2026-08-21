@@ -1,0 +1,25 @@
+// command/group/hidetag.js
+
+export default {
+    name: 'hidetag',
+    aliases: ['ht', 'h'],
+    category: 'group',
+    description: 'Send message with hidden tag all',
+    groupOnly: true,
+    adminOnly: true,
+    botAdmin: false,
+
+    execute(ctx) {
+        const { metadata, text } = ctx;
+        const participants = metadata?.participants || [];
+        const mentions = participants
+            .map(p => p.id || p.jid || p.lid)
+            .filter(Boolean);
+
+        const message = text || '📢 Hidetag';
+        return {
+            text: message,
+            mentions: mentions
+        };
+    }
+};
