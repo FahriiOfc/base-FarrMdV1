@@ -9,24 +9,21 @@ const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.dirname(path.dirname(__dirname));
 const COMMAND_DIR = path.join(PROJECT_ROOT, 'command');
 const LIB_DIR = path.join(PROJECT_ROOT, 'lib');
+const SCRAPER_DIR = path.join(PROJECT_ROOT, 'scraper');
 
 export default {
     name: 'addcmd',
     aliases: ['add'],
     category: 'owner',
-    description: 'Add file to command/ or lib/',
+    description: 'Add file to command/, lib/, or scraper/',
     ownerOnly: true,
 
     async execute(ctx) {
         const { isOwner, sock, chat, quoted, args, sender } = ctx;
 
-        // ============================================================
-        // VALIDASI: HANYA OWNER
-        // ============================================================
-
         if (!isOwner) {
             console.log(`[ADDCMD] Blocked non-owner: ${sender}`);
-            return; // SILENT IGNORE
+            return;
         }
 
         const filePath = args.join(' ') || '';
@@ -37,10 +34,12 @@ export default {
                 '📌 *Cara Penggunaan:*\n' +
                 '1. `.addcmd command/main/test.js`\n' +
                 '2. `.addcmd lib/helper.js`\n' +
-                '3. Reply ke file JavaScript atau pesan yang berisi source code\n\n' +
+                '3. `.addcmd scraper/new.js`\n' +
+                '4. Reply ke file JavaScript atau pesan yang berisi source code\n\n' +
                 '📁 *Bisa di:*\n' +
                 '• command/  - Untuk command baru\n' +
-                '• lib/      - Untuk library baru'
+                '• lib/      - Untuk library baru\n' +
+                '• scraper/  - Untuk scraper baru'
             );
         }
 
@@ -53,13 +52,14 @@ export default {
 
         const isInCommand = fullPath.startsWith(COMMAND_DIR);
         const isInLib = fullPath.startsWith(LIB_DIR);
+        const isInScraper = fullPath.startsWith(SCRAPER_DIR);
 
-        if (!isInCommand && !isInLib) {
-            return '❌ Path harus berada di dalam command/ atau lib/ directory.';
+        if (!isInCommand && !isInLib && !isInScraper) {
+            return '❌ Path harus di command/, lib/, atau scraper/';
         }
 
         if (!fullPath.endsWith('.js')) {
-            return '❌ File harus memiliki ekstensi .js.';
+            return '❌ File harus .js';
         }
 
         // ============================================================
@@ -86,7 +86,6 @@ export default {
         if (quoted) {
             const quotedMsg = quoted.message;
             
-            // Cek document message (file JS)
             if (quotedMsg?.documentMessage) {
                 try {
                     const { downloadMediaMessage } = await import('@chaeulso/baileys');
@@ -134,7 +133,7 @@ export default {
         }
 
         // ============================================================
-        // SIMPAN KE FILE (PERSISTENT)
+        // SIMPAN KE FILE
         // ============================================================
 
         try {
@@ -162,7 +161,6 @@ export default {
                     return '❌ Command tidak valid! File telah dihapus.';
                 }
 
-                // Reload command loader
                 const commandLoader = ctx.commandLoader || global.commandLoader;
                 if (commandLoader) {
                     await commandLoader.scanCommands();
@@ -172,15 +170,17 @@ export default {
                 }
 
             } catch (error) {
-                // Clean up on error
                 try {
                     await fs.unlink(fullPath);
                 } catch (e) {}
                 return `❌ Gagal memuat command: ${error.message}`;
             }
         } else {
-            // Untuk lib/, tidak perlu register, hanya info
-            resultMessage += `\n\n📦 File library berhasil ditambahkan ke lib/`;
+            if (isInScraper) {
+                resultMessage += `\n\n📦 File scraper berhasil ditambahkan ke scraper/`;
+            } else {
+                resultMessage += `\n\n📦 File library berhasil ditambahkan ke lib/`;
+            }
         }
 
         return resultMessage;

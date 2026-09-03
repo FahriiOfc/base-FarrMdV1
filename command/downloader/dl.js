@@ -44,7 +44,7 @@ export default {
                     mimetype: 'audio/mpeg'
                 });
             }
-            return '✅ Selesai!';
+            return;
         } catch (error) {
             console.error('[DL] Error:', error.message);
             await ctx.react('❌');

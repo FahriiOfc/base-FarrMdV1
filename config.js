@@ -66,5 +66,6 @@ export default {
     // API KEYS
     // =========================================
     
-    lolhumanApiKey: 'eddeec5f6f3b2b1ee1948a6a'
+    lolhumanApiKey: 'eddeec5f6f3b2b1ee1948a6a',
+    kyzorohanApiKey: 'kyzo_b953238df0ff4123'
 };

@@ -9,7 +9,8 @@ const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.dirname(path.dirname(__dirname));
 const COMMAND_DIR = path.join(PROJECT_ROOT, 'command');
 const LIB_DIR = path.join(PROJECT_ROOT, 'lib');
-const SCRAPER_DIR = path.join(PROJECT_ROOT, 'scraper');  // <-- BARU
+const SCRAPER_DIR = path.join(PROJECT_ROOT, 'scraper');
+const AI_MODULES_DIR = path.join(PROJECT_ROOT, 'ai-modules');
 
 export default {
     name: 'getcmd',
@@ -19,7 +20,7 @@ export default {
     ownerOnly: true,
 
     async execute(ctx) {
-        const { isOwner, sock, chat, args, sender } = ctx;
+        const { isOwner, sock, chat, args, sender, message, jid, serializer, config } = ctx;
 
         if (!isOwner) {
             console.log(`[GETCMD] Blocked non-owner: ${sender}`);
@@ -57,6 +58,11 @@ export default {
                         buttonId: 'getcmd_menu_scraper',
                         buttonText: { displayText: '📁 scraper/' },
                         type: 1
+                    },
+                    {
+                        buttonId: 'getcmd_menu_ai',
+                        buttonText: { displayText: '🤖 ai-modules/' },
+                        type: 1
                     }
                 ],
                 headerType: 1
@@ -73,6 +79,7 @@ export default {
                     `.getcmd command/\n` +
                     `.getcmd lib/\n` +
                     `.getcmd scraper/\n` +
+                    `.getcmd ai-modules/\n` +
                     `.getcmd command/main/ping.js`
                 );
             }
@@ -93,18 +100,19 @@ export default {
         const isInCommand = fullPath.startsWith(COMMAND_DIR);
         const isInLib = fullPath.startsWith(LIB_DIR);
         const isInScraper = fullPath.startsWith(SCRAPER_DIR);
+        const isInAI = fullPath.startsWith(AI_MODULES_DIR);
 
         // ============================================================
         // 3. JIKA PATH ADALAH FOLDER → LIST MESSAGE
         // ============================================================
 
-        if ((isInCommand || isInLib || isInScraper) && !fullPath.endsWith('.js')) {
+        if ((isInCommand || isInLib || isInScraper || isInAI) && !fullPath.endsWith('.js')) {
             try {
                 await fs.access(fullPath);
                 const stat = await fs.stat(fullPath);
                 
                 if (stat.isDirectory()) {
-                    // Jika folder = command/ → list message
+                    // FOLDER command/
                     if (fullPath === COMMAND_DIR) {
                         await ctx.react('⏳');
                         
@@ -171,10 +179,7 @@ export default {
                         return;
                     }
 
-                    // ============================================================
-                    // FOLDER lib/ → LIST MESSAGE
-                    // ============================================================
-
+                    // FOLDER lib/
                     if (fullPath === LIB_DIR) {
                         await ctx.react('⏳');
                         
@@ -223,10 +228,7 @@ export default {
                         return;
                     }
 
-                    // ============================================================
-                    // FOLDER scraper/ → LIST MESSAGE (BARU)
-                    // ============================================================
-
+                    // FOLDER scraper/
                     if (fullPath === SCRAPER_DIR) {
                         await ctx.react('⏳');
                         
@@ -266,6 +268,68 @@ export default {
                         await sock.sendMessage(chat, {
                             text: '📌 *GETCMD - Pilih File*\n\nPilih file scraper yang ingin dilihat:',
                             title: '📁 scraper/',
+                            footer: `📱 Total: ${jsFiles.length} files`,
+                            buttonText: '📋 Buka Daftar',
+                            sections: sections
+                        });
+
+                        await ctx.react('✅');
+                        return;
+                    }
+
+                    // FOLDER ai-modules/
+                    if (fullPath === AI_MODULES_DIR) {
+                        await ctx.react('⏳');
+                        
+                        const entries = await fs.readdir(fullPath, { withFileTypes: true });
+                        const jsFiles = [];
+                        
+                        for (const entry of entries) {
+                            if (entry.isDirectory()) {
+                                const subDir = path.join(fullPath, entry.name);
+                                const subEntries = await fs.readdir(subDir, { withFileTypes: true });
+                                for (const sub of subEntries) {
+                                    if (sub.isFile() && sub.name.endsWith('.js')) {
+                                        jsFiles.push({
+                                            name: `${entry.name}/${sub.name}`,
+                                            display: `${entry.name}/${sub.name}`
+                                        });
+                                    }
+                                }
+                            } else if (entry.isFile() && entry.name.endsWith('.js')) {
+                                jsFiles.push({
+                                    name: entry.name,
+                                    display: entry.name
+                                });
+                            }
+                        }
+                        
+                        jsFiles.sort((a, b) => a.name.localeCompare(b.name));
+
+                        if (jsFiles.length === 0) {
+                            await ctx.react('❌');
+                            return '📁 *ai-modules/*\n\nTidak ada file.';
+                        }
+
+                        const rows = jsFiles.map(file => ({
+                            title: `📄 ${file.display}`,
+                            rowId: `getcmd_ai_${file.name.replace('/', '_').replace('.js', '')}`,
+                            description: `File di ai-modules/${file.display}`
+                        }));
+
+                        const sections = [];
+                        const maxRowsPerSection = 10;
+                        for (let i = 0; i < rows.length; i += maxRowsPerSection) {
+                            const chunk = rows.slice(i, i + maxRowsPerSection);
+                            sections.push({
+                                title: `📁 File ${Math.floor(i / maxRowsPerSection) + 1}`,
+                                rows: chunk
+                            });
+                        }
+
+                        await sock.sendMessage(chat, {
+                            text: '📌 *GETCMD - Pilih File AI*\n\nPilih file yang ingin dilihat source code-nya:',
+                            title: '🤖 ai-modules/',
                             footer: `📱 Total: ${jsFiles.length} files`,
                             buttonText: '📋 Buka Daftar',
                             sections: sections
@@ -325,8 +389,8 @@ export default {
         // 4. JIKA PATH ADALAH FILE → TAMPILKAN SOURCE
         // ============================================================
 
-        if (!isInCommand && !isInLib && !isInScraper) {
-            return '❌ Path harus di command/, lib/, atau scraper/';
+        if (!isInCommand && !isInLib && !isInScraper && !isInAI) {
+            return '❌ Path harus di command/, lib/, scraper/, atau ai-modules/';
         }
 
         if (!fullPath.endsWith('.js')) {

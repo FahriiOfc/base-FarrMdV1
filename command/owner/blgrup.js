@@ -1,4 +1,5 @@
 // command/owner/blgrup.js
+// ⛔ Blacklist Grup + Nama Grup
 
 import database from '../../lib/database.js';
 
@@ -6,26 +7,21 @@ export default {
     name: 'blgrup',
     aliases: ['blacklistgrup', 'blgc'],
     category: 'owner',
-    description: 'Blacklist a group',
+    description: '⛔ Blacklist a group',
     ownerOnly: true,
 
     async execute(ctx) {
-        await ctx.react('⏳');
+        const { sock, chat, args, sender, isOwner, isGroup, react, reply } = ctx;
+        await react('⏳');
 
-        // DEBUG: Log sender info
-        console.log('[BLGRUP] Sender:', ctx.sender);
-        console.log('[BLGRUP] isOwner:', ctx.isOwner);
-        console.log('[BLGRUP] isBot:', ctx.isBot);
-        console.log('[BLGRUP] fromMe:', ctx.fromMe);
+        let targetJid = args[0] || '';
 
-        let targetJid = ctx.args[0] || '';
-
-        if (!targetJid && ctx.isGroup) {
-            targetJid = ctx.chat;
+        if (!targetJid && isGroup) {
+            targetJid = chat;
         }
 
         if (!targetJid || !targetJid.endsWith('@g.us')) {
-            await ctx.react('❌');
+            await react('❌');
             return (
                 '❌ Target grup tidak valid!\n\n' +
                 '📌 *Cara Penggunaan:*\n' +
@@ -34,12 +30,28 @@ export default {
             );
         }
 
+        // Ambil nama grup
+        let groupName = '❓ Tidak dikenal';
+        try {
+            const metadata = await sock.groupMetadata(targetJid);
+            if (metadata && metadata.subject) {
+                groupName = metadata.subject;
+            }
+        } catch (e) {
+            console.log('[BLGRUP] Gagal ambil nama grup:', e.message);
+        }
+
         if (database.addBlGrup(targetJid)) {
-            await ctx.react('✅');
-            return `⛔ Grup ${targetJid} berhasil ditambahkan ke blacklist.\nBot tidak akan merespon di grup ini.`;
+            await react('✅');
+            return (
+                `⛔ Grup ${groupName} Berhasil Diblacklist! dengan ID: ${targetJid}\n` +
+//                `📌 *Nama:* ${groupName}\n` +
+//                `🆔 *ID:* ${targetJid}\n\n` +
+                `📋 Cek daftar: .listblgrup`
+            );
         } else {
-            await ctx.react('ℹ️');
-            return `ℹ️ Grup ${targetJid} sudah ada di blacklist.`;
+            await react('ℹ️');
+            return `ℹ️ Grup *${groupName}* dengan ID: (${targetJid}) sudah ada di blacklist.`;
         }
     }
 };

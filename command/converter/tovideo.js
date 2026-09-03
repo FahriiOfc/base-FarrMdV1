@@ -4,47 +4,56 @@ import media from '../../lib/media.js';
 
 export default {
     name: 'tovideo',
-    aliases: [],
+    aliases: ['tovid', 'giftomp4'],
     category: 'converter',
-    description: 'Convert sticker to video (animated sticker → video with duration)',
+    description: 'Convert sticker to video (animated) or image (static)',
 
     async execute(ctx) {
         const { sock, chat } = ctx;
 
-        // Ambil media dari pesan
         const mediaBuffer = await ctx.getMediaFromMessage?.();
 
         if (!mediaBuffer) {
             return (
-                '❌ Reply ke sticker yang ingin diubah menjadi video.\n\n' +
+                '❌ Reply ke sticker yang ingin diubah.\n\n' +
                 '📌 *Support:*\n' +
-                '• Sticker biasa (jadi video 3 detik)\n' +
-                '• Sticker gerak/animated (jadi video sesuai durasi)'
+                '• Sticker statis → jadi gambar PNG\n' +
+                '• Sticker animasi → jadi video MP4 (durasi penuh)'
             );
         }
 
         await ctx.react('⏳');
 
         try {
-            const videoBuffer = await media.toVideo(mediaBuffer);
-            
-            if (!videoBuffer || videoBuffer.length === 0) {
+            const result = await media.toVideo(mediaBuffer);
+
+            if (!result || result.length === 0) {
                 await ctx.react('❌');
-                return '❌ Gagal mengubah sticker ke video.';
+                return '❌ Gagal mengkonversi.';
             }
 
-            await sock.sendMessage(chat, {
-                video: videoBuffer,
-                caption: '✅ Berhasil diubah menjadi video'
-            });
+            // CEK APAKAH INI PNG (STATIC WEBP) ATAU MP4 (ANIMATED)
+            const isPng = result.slice(0, 8).toString('hex') === '89504e47';
+
+            if (isPng) {
+                await sock.sendMessage(chat, {
+                    image: result,
+                    caption: '✅ Sticker statis → Gambar'
+                });
+            } else {
+                await sock.sendMessage(chat, {
+                    video: result,
+                    caption: '✅ Sticker animasi → Video (durasi penuh)'
+                });
+            }
 
             await ctx.react('✅');
-            return; // Silent success
+            return;
 
         } catch (error) {
             console.error('[TOVIDEO] Error:', error.message);
             await ctx.react('❌');
-            return `❌ ${error.message || 'Gagal mengubah ke video'}`;
+            return `❌ ${error.message || 'Gagal mengkonversi'}`;
         }
     }
 };

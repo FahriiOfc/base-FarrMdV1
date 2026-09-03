@@ -113,6 +113,13 @@ export default {
             '┃ 📋 .logcmd\n' +
             '┃ 🔄 .restart\n' +
             '┃ 🐛 .debug\n' +
+            '┃ 📇 .cc\n' +
+            '┃ ➕ .addowner\n' +
+            '┃ ❌ .delowner\n' +
+            '┃ 📋 .listowner\n' +
+            '┃ 🔄 .setowner\n' +
+            '┃ 🐛 .debug\n' +
+            '┃ 🤖 .aimode (on/off)\n' +
             '┃ 👑 .ownermenu\n' +
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +

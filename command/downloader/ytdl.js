@@ -66,7 +66,8 @@ export default {
             }
 
             await ctx.react('✅');
-            return `✅ Selesai! ${format.toUpperCase()}`;
+//            return `✅ Selesai! ${format.toUpperCase()}`;
+            return;
         } catch (error) {
             console.error('[YTDL] Error:', error.message);
             await ctx.react('❌');

@@ -137,6 +137,11 @@ export default {
             '┃ 🏞️ .getppgc\n' +
             '┃ 📌 .pin\n' +
             '┃ 📌 .unpin\n' +
+            '┃ 📝 .setdesc\n' +
+            '┃ 🗑️ .deldesc\n' +
+            '┃ 📄 .getdesc\n' +
+            '┃ ✏️ .rename\n' +
+            '┃ 🔄 .resetname\n' +
             '┃ 👥 .groupmenu\n' +
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +

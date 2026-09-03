@@ -1,0 +1,312 @@
+// ai-modules/lib/commandMatcher.js
+// Natural Language Command Matcher
+
+import AI_CONFIG from './aiConfig.js';
+
+// ============================================================
+// COMMAND PATTERNS
+// ============================================================
+
+const COMMAND_PATTERNS = [
+    // Converter
+    {
+        keywords: ['sticker', 'jadikan sticker', 'buat sticker', 'stick', 'stiker'],
+        command: 'sticker',
+        needsMedia: true,
+        description: 'Membuat sticker dari gambar/video'
+    },
+    {
+        keywords: ['to image', 'jadikan gambar', 'ke gambar', 'toimg'],
+        command: 'toimg',
+        needsMedia: true,
+        description: 'Ubah sticker ke gambar'
+    },
+    {
+        keywords: ['to video', 'jadikan video', 'ke video', 'tovideo'],
+        command: 'tovideo',
+        needsMedia: true,
+        description: 'Ubah sticker ke video'
+    },
+    {
+        keywords: ['to mp3', 'jadikan mp3', 'ambil audio', 'tomp3'],
+        command: 'tomp3',
+        needsMedia: true,
+        description: 'Ambil audio dari video'
+    },
+    {
+        keywords: ['to vn', 'jadikan vn', 'voice note', 'tovn'],
+        command: 'tovn',
+        needsMedia: true,
+        description: 'Ubah audio ke voice note'
+    },
+
+    // Downloader
+    {
+        keywords: ['download yt', 'yt download', 'youtube', 'ytmp3', 'ytmp4'],
+        command: 'ytdl',
+        needsLink: true,
+        description: 'Download video/audio YouTube'
+    },
+    {
+        keywords: ['tiktok download', 'download tiktok', 'tt', 'tiktok'],
+        command: 'tiktok',
+        needsLink: true,
+        description: 'Download video TikTok'
+    },
+    {
+        keywords: ['instagram download', 'download ig', 'ig', 'instagram'],
+        command: 'igdl',
+        needsLink: true,
+        description: 'Download Instagram'
+    },
+    {
+        keywords: ['facebook download', 'download fb', 'fbdl', 'facebook'],
+        command: 'fbdl',
+        needsLink: true,
+        description: 'Download Facebook'
+    },
+
+    // Group
+    {
+        keywords: ['tag semua', 'tagall', 'mention all', 'tag all'],
+        command: 'tagall',
+        needsGroup: true,
+        adminOnly: true,
+        description: 'Tag semua anggota grup'
+    },
+    {
+        keywords: ['buka grup', 'open grup', 'buka gc'],
+        command: 'open',
+        needsGroup: true,
+        adminOnly: true,
+        description: 'Buka grup'
+    },
+    {
+        keywords: ['tutup grup', 'close grup', 'tutup gc'],
+        command: 'close',
+        needsGroup: true,
+        adminOnly: true,
+        description: 'Tutup grup'
+    },
+
+    // Tools
+    {
+        keywords: ['cuaca', 'weather', 'info cuaca'],
+        command: 'weather',
+        needsArgs: true,
+        description: 'Cek cuaca'
+    },
+    {
+        keywords: ['google', 'cari google', 'search google'],
+        command: 'google',
+        needsArgs: true,
+        description: 'Cari di Google'
+    },
+    {
+        keywords: ['wallpaper', 'cari wallpaper'],
+        command: 'wallpaper',
+        needsArgs: true,
+        description: 'Cari wallpaper'
+    },
+    {
+        keywords: ['ss web', 'screenshot web', 'ssweb'],
+        command: 'ssweb',
+        needsLink: true,
+        description: 'Screenshot website'
+    },
+
+    // AI
+    {
+        keywords: ['tanya ai', 'ai chat', 'chat ai', 'tanya'],
+        command: 'aichat',
+        needsArgs: true,
+        description: 'Tanya ke AI'
+    },
+    {
+        keywords: ['mode ai', 'aktifkan ai', 'nonaktifkan ai'],
+        command: 'aimode',
+        description: 'Atur mode AI'
+    },
+    {
+        keywords: ['reset ai', 'clear ai', 'hapus memory ai'],
+        command: 'aireset',
+        description: 'Reset memory AI'
+    },
+
+    // Owner
+    {
+        keywords: ['self', 'mode self'],
+        command: 'self',
+        ownerOnly: true,
+        description: 'Mode self'
+    },
+    {
+        keywords: ['public', 'mode public'],
+        command: 'public',
+        ownerOnly: true,
+        description: 'Mode public'
+    },
+
+    // Info
+    {
+        keywords: ['menu', 'help', 'bantuan', 'info bot'],
+        command: 'menu',
+        description: 'Tampilkan menu'
+    },
+    {
+        keywords: ['runtime', 'waktu jalan', 'uptime'],
+        command: 'runtime',
+        description: 'Info runtime bot'
+    },
+    {
+        keywords: ['ping', 'test bot', 'cek bot'],
+        command: 'ping',
+        description: 'Test response bot'
+    },
+    {
+        keywords: ['owner', 'siapa owner'],
+        command: 'owner',
+        description: 'Info owner bot'
+    }
+];
+
+// ============================================================
+// COMMAND MATCHER CLASS - FIXED
+// ============================================================
+
+export class CommandMatcher {
+    constructor() {
+        this.patterns = COMMAND_PATTERNS;
+        console.log('[CMD-MATCHER] ✅ Loaded', this.patterns.length, 'patterns');
+    }
+
+    // ============================================================
+    // MATCH COMMAND FROM TEXT - FIXED
+    // ============================================================
+
+    async matchCommand(text) {
+        // ✅ CEK APAKAH TEXT VALID
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
+            return null;
+        }
+
+        const lowerText = text.toLowerCase().trim();
+
+        // Coba cocokkan dengan patterns
+        for (const pattern of this.patterns) {
+            for (const keyword of pattern.keywords) {
+                if (lowerText.includes(keyword.toLowerCase())) {
+                    const args = this.#extractArgs(lowerText, pattern);
+                    return {
+                        name: pattern.command,
+                        args: args,
+                        pattern: pattern
+                    };
+                }
+            }
+        }
+
+        // Coba deteksi dari commandLoader
+        return this.#detectByAlias(lowerText);
+    }
+
+    // ============================================================
+    // EXTRACT ARGS
+    // ============================================================
+
+    #extractArgs(text, pattern) {
+        let remaining = text;
+        for (const keyword of pattern.keywords) {
+            remaining = remaining.replace(keyword.toLowerCase(), '').trim();
+        }
+
+        if (remaining.length > 0) {
+            return remaining.split(/\s+/);
+        }
+        return [];
+    }
+
+    // ============================================================
+    // DETECT BY ALIAS
+    // ============================================================
+
+    #detectByAlias(text) {
+        const commandLoader = global.commandLoader;
+        if (!commandLoader) return null;
+
+        const words = text.toLowerCase().split(/\s+/);
+        for (const word of words) {
+            const cmd = commandLoader.getCommand(word);
+            if (cmd) {
+                return {
+                    name: cmd.name,
+                    args: words.filter(w => w !== word),
+                    pattern: { command: cmd.name }
+                };
+            }
+        }
+        return null;
+    }
+
+    // ============================================================
+    // CHECK PERMISSIONS
+    // ============================================================
+
+    async checkPermissions(ctx, matched) {
+        const { isGroup, isAdmin, isOwner } = ctx;
+        const pattern = matched.pattern;
+
+        if (pattern.ownerOnly && !isOwner) {
+            return { allowed: false, reason: '❌ Command ini hanya untuk Owner.' };
+        }
+
+        if (pattern.adminOnly && !isAdmin) {
+            return { allowed: false, reason: '❌ Command ini hanya untuk Admin grup.' };
+        }
+
+        if (pattern.needsGroup && !isGroup) {
+            return { allowed: false, reason: '❌ Command ini hanya bisa di grup.' };
+        }
+
+        if (pattern.needsMedia) {
+            const hasMedia = await this.#hasMedia(ctx);
+            if (!hasMedia) {
+                return { allowed: false, reason: `❌ Reply ke media untuk perintah "${pattern.command}".` };
+            }
+        }
+
+        if (pattern.needsLink) {
+            const hasLink = this.#hasLink(ctx.text);
+            if (!hasLink) {
+                return { allowed: false, reason: `❌ Sertakan URL untuk perintah "${pattern.command}".` };
+            }
+        }
+
+        if (pattern.needsArgs && (!ctx.args || ctx.args.length === 0)) {
+            return { allowed: false, reason: `❌ Sertakan argumen untuk perintah "${pattern.command}".` };
+        }
+
+        return { allowed: true };
+    }
+
+    // ============================================================
+    // HELPER METHODS
+    // ============================================================
+
+    async #hasMedia(ctx) {
+        try {
+            const media = await ctx.getMediaFromMessage?.();
+            return media && media.length > 0;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    #hasLink(text) {
+        if (!text || typeof text !== 'string') return false;
+        const urlRegex = /(https?:\/\/[^\s]+)/gi;
+        return urlRegex.test(text);
+    }
+}
+
+export default new CommandMatcher();

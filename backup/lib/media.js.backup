@@ -1,11 +1,12 @@
 // lib/media.js
-// Media Processing - FIXED VERSION
+// Media Processing - DENGAN SHARP + FFMPEG
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import sharp from 'sharp'; // <-- TAMBAHKAN INI
 
 // ============================================================
 // SET FFMPEG PATH
@@ -62,7 +63,7 @@ function detectFileTypeSync(buffer) {
 }
 
 // ============================================================
-// DETEKSI ANIMATED WEBP - LEBIH AKURAT
+// DETEKSI ANIMATED WEBP (FALLBACK)
 // ============================================================
 
 function isAnimatedWebP(buffer) {
@@ -71,7 +72,6 @@ function isAnimatedWebP(buffer) {
         const isRiff = buffer.slice(0, 4).toString('ascii') === 'RIFF';
         const isWebp = buffer.slice(8, 12).toString('ascii') === 'WEBP';
         if (!isRiff || !isWebp) return false;
-        // CEK ANIM ATAU ANMF (ANMF = Animated Frame)
         const hasAnim = buffer.includes(Buffer.from('ANIM'));
         const hasAnmf = buffer.includes(Buffer.from('ANMF'));
         return hasAnim || hasAnmf;
@@ -81,41 +81,7 @@ function isAnimatedWebP(buffer) {
 }
 
 // ============================================================
-// EKSTRAK DURASI - LEBIH ROBUST
-// ============================================================
-
-function extractAnimDuration(buffer) {
-    try {
-        // Cari ANIM chunk
-        let animIndex = buffer.indexOf('ANIM');
-        if (animIndex === -1) {
-            // Cari ANMF chunk (alternatif)
-            animIndex = buffer.indexOf('ANMF');
-            if (animIndex === -1) return null;
-            // ANMF: 4 byte 'ANMF' + 4 byte size + 2 byte frame count + 2 byte duration
-            const durationOffset = animIndex + 12;
-            if (buffer.length < durationOffset + 2) return null;
-            const durMs = buffer.readUInt16LE(durationOffset);
-            if (durMs > 0 && durMs < 30000) {
-                return durMs / 1000;
-            }
-            return null;
-        }
-        // ANIM: 4 byte 'ANIM' + 4 byte size + 4 byte duration (little endian)
-        const durationOffset = animIndex + 12;
-        if (buffer.length < durationOffset + 4) return null;
-        const durMs = buffer.readUInt32LE(durationOffset);
-        if (durMs > 0 && durMs < 30000) {
-            return durMs / 1000;
-        }
-        return null;
-    } catch (e) {
-        return null;
-    }
-}
-
-// ============================================================
-// TO STICKER - FIXED
+// TO STICKER (TIDAK BERUBAH)
 // ============================================================
 
 export async function toSticker(buffer, options = {}) {
@@ -163,7 +129,6 @@ export async function toSticker(buffer, options = {}) {
         const inputFile = `${tempFile}.${type.ext}`;
         fs.writeFileSync(inputFile, buffer);
 
-        // IMAGE → STICKER
         if (type.mime.startsWith('image/')) {
             await new Promise((resolve, reject) => {
                 ffmpeg(inputFile)
@@ -177,10 +142,7 @@ export async function toSticker(buffer, options = {}) {
                     .on('error', (err) => reject(err))
                     .run();
             });
-        }
-
-        // VIDEO → STICKER (FIXED)
-        else if (type.mime.startsWith('video/')) {
+        } else if (type.mime.startsWith('video/')) {
             let duration = 0;
             try {
                 const probe = await new Promise((resolve, reject) => {
@@ -211,7 +173,6 @@ export async function toSticker(buffer, options = {}) {
                 inputToUse = trimmedFile;
             }
 
-            // PERBAIKAN: Tambahkan -vsync 0 dan -c:v libwebp
             await new Promise((resolve, reject) => {
                 ffmpeg(inputToUse)
                     .outputOptions([
@@ -219,7 +180,7 @@ export async function toSticker(buffer, options = {}) {
                         '-c:v', 'libwebp',
                         '-q:v', '80',
                         '-loop', '0',
-                        '-vsync', '0',  // ← PENTING: biar ga freeze
+                        '-vsync', '0',
                         '-an'
                     ])
                     .output(outputFile)
@@ -249,7 +210,7 @@ export async function toSticker(buffer, options = {}) {
 }
 
 // ============================================================
-// TO IMAGE
+// TO IMAGE (TIDAK BERUBAH)
 // ============================================================
 
 export async function toImage(buffer) {
@@ -291,14 +252,13 @@ export async function toImage(buffer) {
 }
 
 // ============================================================
-// TO VIDEO - FIXED
+// TO VIDEO - DENGAN SHARP + DURASI AKURAT (TANPA BATAS)
 // ============================================================
 
 export async function toVideo(buffer) {
     ensureTempDir();
     const timestamp = Date.now();
     const tempFile = path.join(TEMP_DIR, `video_${timestamp}`);
-    const inputFile = `${tempFile}.webp`;
     const outputFile = `${tempFile}.mp4`;
     const cleanupPattern = `video_${timestamp}`;
 
@@ -309,10 +269,7 @@ export async function toVideo(buffer) {
             throw new Error('Buffer kosong atau tidak valid');
         }
 
-        // ============================================================
-        // 1. VALIDASI WEBP
-        // ============================================================
-
+        // CEK APAKAH WEBP
         const isWebP = buffer.slice(0, 4).toString('ascii') === 'RIFF' &&
                        buffer.slice(8, 12).toString('ascii') === 'WEBP';
 
@@ -321,93 +278,85 @@ export async function toVideo(buffer) {
             throw new Error('File bukan WebP yang valid');
         }
 
-        // ============================================================
-        // 2. DETEKSI ANIMATED & DURASI
-        // ============================================================
+        // CEK APAKAH ANIMATED PAKAI SHARP
+        let isAnimated = false;
+        let totalDuration = 0;
 
-        const isAnimated = isAnimatedWebP(buffer);
-        console.log('[MEDIA] Is animated WebP:', isAnimated);
-
-        let duration = 3; // default static
-        let durationSource = 'default';
-
-        if (isAnimated) {
-            const animDuration = extractAnimDuration(buffer);
-            if (animDuration && animDuration > 0) {
-                // Maksimal 10 detik untuk video
-                duration = Math.min(animDuration, 10);
-                durationSource = 'ANIM chunk';
-                console.log('[MEDIA] Duration from ANIM:', duration, 's');
-            }
-        }
-
-        // Fallback: probe
-        if (duration === 3 || !isAnimated) {
-            try {
-                fs.writeFileSync(inputFile, buffer);
-                const probe = await new Promise((resolve, reject) => {
-                    ffmpeg.ffprobe(inputFile, (err, metadata) => {
-                        if (err) reject(err);
-                        else resolve(metadata);
-                    });
-                });
-                if (probe?.format?.duration && probe.format.duration > 0) {
-                    const probeDuration = Math.min(probe.format.duration, 10);
-                    if (probeDuration > 0.5) {
-                        duration = probeDuration;
-                        durationSource = 'ffprobe';
-                        console.log('[MEDIA] Duration from ffprobe:', duration, 's');
-                    }
+        try {
+            const metadata = await sharp(buffer).metadata();
+            isAnimated = (metadata.pages && metadata.pages > 1) || isAnimatedWebP(buffer);
+            
+            // DURASI DARI SHARP (jika ada)
+            if (metadata.duration) {
+                totalDuration = Math.round(metadata.duration * 10) / 10;
+                console.log('[MEDIA] Duration from sharp metadata:', totalDuration, 's');
+            } else {
+                // FALLBACK: ambil dari ANIM chunk
+                const animDuration = extractAnimDuration(buffer);
+                if (animDuration && animDuration > 0) {
+                    totalDuration = Math.round(animDuration * 10) / 10;
+                    console.log('[MEDIA] Duration from ANIM chunk:', totalDuration, 's');
                 }
-            } catch (probeError) {
-                console.log('[MEDIA] Probe failed:', probeError.message);
             }
+
+            console.log('[MEDIA] Is animated (sharp):', isAnimated);
+
+        } catch (e) {
+            isAnimated = isAnimatedWebP(buffer);
+            console.log('[MEDIA] Is animated (fallback):', isAnimated);
         }
 
-        console.log('[MEDIA] Final duration:', duration, 's (source:', durationSource, ')');
-
         // ============================================================
-        // 3. TULIS FILE INPUT
+        // KALAU STATIC WEBP → JADIIN PNG (BUKAN VIDEO 3 DETIK)
         // ============================================================
 
-        fs.writeFileSync(inputFile, buffer);
+        if (!isAnimated) {
+            console.log('[MEDIA] Static WebP → convert to PNG');
+            const pngBuffer = await sharp(buffer).png().toBuffer();
+            cleanupTempFiles(cleanupPattern);
+            return pngBuffer; // <-- KIRIM PNG, BUKAN VIDEO
+        }
 
         // ============================================================
-        // 4. KONVERSI KE MP4
+        // ANIMATED WEBP → GIF (PAKAI SHARP) - FULL DURASI
         // ============================================================
+
+        console.log('[MEDIA] Animated WebP → converting to GIF (full duration)...');
+        
+        // pages: -1 = ambil semua frame (TIDAK DIPOTONG)
+        const gifBuffer = await sharp(buffer, { animated: true, pages: -1 })
+            .gif({ loop: 0 })
+            .toBuffer();
+
+        if (!gifBuffer || gifBuffer.length === 0) {
+            throw new Error('Gagal konversi WebP ke GIF');
+        }
+
+        console.log('[MEDIA] GIF size:', gifBuffer.length);
+        console.log('[MEDIA] Total duration (from metadata):', totalDuration || 'unknown', 's');
+
+        // ============================================================
+        // GIF → MP4 (PAKAI FFMPEG) - TANPA BATAS DURASI
+        // ============================================================
+
+        const gifFile = `${tempFile}.gif`;
+        fs.writeFileSync(gifFile, gifBuffer);
+
+        console.log('[MEDIA] Converting GIF to MP4...');
 
         await new Promise((resolve, reject) => {
-            const cmd = ffmpeg(inputFile)
-                .inputOptions(['-f', 'webp']);
-
-            if (isAnimated) {
-                // ANIMATED: loop 0, durasi sesuai
-                cmd.inputOptions(['-loop', '0']);
-                cmd.outputOptions([
-                    '-c:v', 'libx264',
+            ffmpeg(gifFile)
+                .outputOptions([
+                    '-movflags', 'faststart',
                     '-pix_fmt', 'yuv420p',
-                    '-movflags', '+faststart',
                     '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
-                    '-vsync', '0',  // ← PENTING
-                    '-t', String(duration)
-                ]);
-            } else {
-                // STATIC: loop 1, durasi 3 detik
-                cmd.inputOptions(['-loop', '1']);
-                cmd.outputOptions([
                     '-c:v', 'libx264',
-                    '-pix_fmt', 'yuv420p',
-                    '-movflags', '+faststart',
-                    '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
-                    '-t', '3'
-                ]);
-            }
-
-            cmd
+                    '-preset', 'ultrafast',
+                    '-crf', '23',
+                    '-an'
+                ])
                 .output(outputFile)
-                .on('start', (cmdLine) => {
-                    console.log('[MEDIA] FFmpeg:', cmdLine);
-                })
+                .on('start', (cmd) => console.log('[MEDIA] FFmpeg:', cmd))
                 .on('end', () => {
                     console.log('[MEDIA] Video success');
                     resolve();
@@ -420,7 +369,7 @@ export async function toVideo(buffer) {
         });
 
         // ============================================================
-        // 5. BACA HASIL
+        // BACA HASIL
         // ============================================================
 
         if (!fs.existsSync(outputFile)) {
@@ -441,7 +390,37 @@ export async function toVideo(buffer) {
 }
 
 // ============================================================
-// TO MP3
+// EKSTRAK DURASI DARI ANIM CHUNK (UNTUK FALLBACK)
+// ============================================================
+
+function extractAnimDuration(buffer) {
+    try {
+        let animIndex = buffer.indexOf('ANIM');
+        if (animIndex === -1) {
+            animIndex = buffer.indexOf('ANMF');
+            if (animIndex === -1) return null;
+            const durationOffset = animIndex + 12;
+            if (buffer.length < durationOffset + 2) return null;
+            const durMs = buffer.readUInt16LE(durationOffset);
+            if (durMs > 0 && durMs < 30000) {
+                return durMs / 1000;
+            }
+            return null;
+        }
+        const durationOffset = animIndex + 12;
+        if (buffer.length < durationOffset + 4) return null;
+        const durMs = buffer.readUInt32LE(durationOffset);
+        if (durMs > 0 && durMs < 30000) {
+            return durMs / 1000;
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// ============================================================
+// TO MP3 (TIDAK BERUBAH)
 // ============================================================
 
 export async function toMP3(buffer) {
@@ -477,7 +456,7 @@ export async function toMP3(buffer) {
 }
 
 // ============================================================
-// TO VOICE NOTE
+// TO VOICE NOTE (TIDAK BERUBAH)
 // ============================================================
 
 export async function toVoiceNote(buffer) {
@@ -490,7 +469,6 @@ export async function toVoiceNote(buffer) {
     try {
         if (!buffer || buffer.length === 0) throw new Error('Buffer kosong');
 
-        // Deteksi format
         let detectedExt = 'mp3';
         try {
             const fileType = (await import('file-type')).default;

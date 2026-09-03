@@ -1,4 +1,5 @@
 // command/owner/unblgrup.js
+// ✅ Unblacklist Grup + Nama Grup
 
 import database from '../../lib/database.js';
 
@@ -6,20 +7,21 @@ export default {
     name: 'unblgrup',
     aliases: ['unblacklistgrup', 'unblgc'],
     category: 'owner',
-    description: 'Remove group from blacklist',
+    description: '✅ Remove group from blacklist',
     ownerOnly: true,
 
     async execute(ctx) {
-        await ctx.react('⏳');
+        const { sock, chat, args, isGroup, react, reply } = ctx;
+        await react('⏳');
 
-        let targetJid = ctx.args[0] || '';
+        let targetJid = args[0] || '';
 
-        if (!targetJid && ctx.isGroup) {
-            targetJid = ctx.chat;
+        if (!targetJid && isGroup) {
+            targetJid = chat;
         }
 
         if (!targetJid || !targetJid.endsWith('@g.us')) {
-            await ctx.react('❌');
+            await react('❌');
             return (
                 '❌ Target grup tidak valid!\n\n' +
                 '📌 *Cara Penggunaan:*\n' +
@@ -28,12 +30,28 @@ export default {
             );
         }
 
+        // Ambil nama grup
+        let groupName = '❓ Tidak dikenal';
+        try {
+            const metadata = await sock.groupMetadata(targetJid);
+            if (metadata && metadata.subject) {
+                groupName = metadata.subject;
+            }
+        } catch (e) {
+            console.log('[UNBLGRUP] Gagal ambil nama grup:', e.message);
+        }
+
         if (database.removeBlGrup(targetJid)) {
-            await ctx.react('✅');
-            return `✅ Grup ${targetJid} berhasil dihapus dari blacklist.\nBot akan merespon kembali.`;
+            await react('✅');
+            return (
+                `✅ *Grup ${groupName} Dengan ID: ${targetJid} Berhasil Dihapus dari Blacklist!*\n` +
+//                `📌 *Nama:* ${groupName}\n` +
+//                `🆔 *ID:* ${targetJid}\n\n` +
+                `Bot akan merespon kembali.`
+            );
         } else {
-            await ctx.react('ℹ️');
-            return `ℹ️ Grup ${targetJid} tidak ada di blacklist.`;
+            await react('ℹ️');
+            return `ℹ️ Grup *${groupName}* (${targetJid}) tidak ada di blacklist.`;
         }
     }
 };

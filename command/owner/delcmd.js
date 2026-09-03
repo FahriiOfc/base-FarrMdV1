@@ -15,7 +15,7 @@ export default {
     name: 'delcmd',
     aliases: ['del'],
     category: 'owner',
-    description: 'Delete file in command/, lib/, or scraper/',
+    description: 'Delete file in command/, lib/, scraper/, or ai-modules/',
     ownerOnly: true,
 
     async execute(ctx) {
@@ -33,14 +33,17 @@ export default {
                 '📌 *Contoh:*\n' +
                 '.delcmd command/main/test.js\n' +
                 '.delcmd lib/media.js\n' +
-                '.delcmd scraper/claudehaiku.js\n\n' +
+                '.delcmd scraper/claudehaiku.js\n' +
+                '.delcmd ai-modules/lib/aiService.js\n\n' +
                 '⚠️ *PERINGATAN:* File akan dihapus PERMANEN!'
             );
         }
 
         // ============================================================
-        // VALIDASI PATH
+        // VALIDASI PATH - UPDATED with AI Modules
         // ============================================================
+
+        const AI_MODULES_DIR = path.join(PROJECT_ROOT, 'ai-modules');
 
         const normalized = path.normalize(filePath);
         const fullPath = path.resolve(PROJECT_ROOT, normalized);
@@ -48,9 +51,10 @@ export default {
         const isInCommand = fullPath.startsWith(COMMAND_DIR);
         const isInLib = fullPath.startsWith(LIB_DIR);
         const isInScraper = fullPath.startsWith(SCRAPER_DIR);
+        const isInAI = fullPath.startsWith(AI_MODULES_DIR);
 
-        if (!isInCommand && !isInLib && !isInScraper) {
-            return '❌ Path harus di command/, lib/, atau scraper/';
+        if (!isInCommand && !isInLib && !isInScraper && !isInAI) {
+            return '❌ Path harus di command/, lib/, scraper/, atau ai-modules/';
         }
 
         if (!fullPath.endsWith('.js')) {

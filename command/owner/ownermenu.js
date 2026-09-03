@@ -77,7 +77,7 @@ export default {
             '┃\n' +
             '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
 
-            '╭━━━〔 👑 OWNER COMMANDS 〕━━━╮\n' +
+            '╭━━━〔 👑 OWNER MENU 〕━━━╮\n' +
             '┃\n' +
             '┃ 🌐 .public\n' +
             '┃ 🔐 .self\n' +
@@ -103,8 +103,17 @@ export default {
             '┃ 📋 .logcmd\n' +
             '┃ 🔄 .restart\n' +
             '┃ 🐛 .debug\n' +
+            '┃ 📇 .cc\n' +
+            '┃ ➕ .addowner\n' +
+            '┃ ❌ .delowner\n' +
+            '┃ 📋 .listowner\n' +
+            '┃ 🔄 .setowner\n' +
+            '┃ 🐛 .debug\n' +
+            '┃ 🤖 .aimode (on/off)\n' +
+            '┃ 👁️ .reveal\n' +
+            '┃ 👑 .ownermenu\n' +
             '┃\n' +
-            '╰━━━━━━━━━━━━━━━━━━━━╯\n\n' +
+            '╰━━━━━━━━━━━━━━━━━━━━╯\n\n'  +
 
             '💡 Ketik .menu untuk menu utama'
         );

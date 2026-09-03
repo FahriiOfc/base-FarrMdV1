@@ -15,7 +15,7 @@ export default {
     name: 'addcmd',
     aliases: ['add'],
     category: 'owner',
-    description: 'Add file to command/, lib/, or scraper/',
+    description: 'Add file to command/, lib/, scraper/, or ai-modules/',
     ownerOnly: true,
 
     async execute(ctx) {
@@ -35,17 +35,21 @@ export default {
                 '1. `.addcmd command/main/test.js`\n' +
                 '2. `.addcmd lib/helper.js`\n' +
                 '3. `.addcmd scraper/new.js`\n' +
-                '4. Reply ke file JavaScript atau pesan yang berisi source code\n\n' +
+                '4. `.addcmd ai-modules/lib/aiService.js`\n' +
+                '5. Reply ke file JavaScript atau pesan yang berisi source code\n\n' +
                 '📁 *Bisa di:*\n' +
                 '• command/  - Untuk command baru\n' +
                 '• lib/      - Untuk library baru\n' +
-                '• scraper/  - Untuk scraper baru'
+                '• scraper/  - Untuk scraper baru\n' +
+                '• ai-modules/ - Untuk AI modules'
             );
         }
 
         // ============================================================
-        // VALIDASI PATH
+        // VALIDASI PATH - UPDATED with AI Modules
         // ============================================================
+
+        const AI_MODULES_DIR = path.join(PROJECT_ROOT, 'ai-modules');
 
         const normalized = path.normalize(filePath);
         const fullPath = path.resolve(PROJECT_ROOT, normalized);
@@ -53,9 +57,10 @@ export default {
         const isInCommand = fullPath.startsWith(COMMAND_DIR);
         const isInLib = fullPath.startsWith(LIB_DIR);
         const isInScraper = fullPath.startsWith(SCRAPER_DIR);
+        const isInAI = fullPath.startsWith(AI_MODULES_DIR);
 
-        if (!isInCommand && !isInLib && !isInScraper) {
-            return '❌ Path harus di command/, lib/, atau scraper/';
+        if (!isInCommand && !isInLib && !isInScraper && !isInAI) {
+            return '❌ Path harus di command/, lib/, scraper/, atau ai-modules/';
         }
 
         if (!fullPath.endsWith('.js')) {
@@ -178,6 +183,8 @@ export default {
         } else {
             if (isInScraper) {
                 resultMessage += `\n\n📦 File scraper berhasil ditambahkan ke scraper/`;
+            } else if (isInAI) {
+                resultMessage += `\n\n🤖 File AI modules berhasil ditambahkan ke ai-modules/`;
             } else {
                 resultMessage += `\n\n📦 File library berhasil ditambahkan ke lib/`;
             }

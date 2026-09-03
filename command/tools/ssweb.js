@@ -64,7 +64,7 @@ export default {
             });
 
             await ctx.react('✅');
-            return '✅ Selesai!';
+            return;
         } catch (error) {
             await ctx.react('❌');
             let errorMsg = '🛑 Gagal mengambil screenshot.\n\n';

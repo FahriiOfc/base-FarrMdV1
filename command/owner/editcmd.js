@@ -21,7 +21,7 @@ export default {
     name: 'editcmd',
     aliases: ['edit', 'ed'],
     category: 'owner',
-    description: 'Edit file in command/ or lib/ (with auto-backup)',
+    description: 'Edit file in command/, lib/, or ai-modules/ (with auto-backup)',
     ownerOnly: true,
 
     async execute(ctx) {
@@ -53,22 +53,29 @@ export default {
                 '❌ Masukkan path file!\n\n' +
                 '📌 *Contoh:*\n' +
                 '.editcmd lib/media.js\n' +
-                '.editcmd command/main/menu.js\n\n' +
+                '.editcmd command/main/menu.js\n' +
+                '.editcmd ai-modules/lib/aiService.js\n\n' +
                 '📌 *Edit file CORE:*\n' +
                 '.editcmd lib/handler.js --force'
             );
         }
 
-        // Validasi path
+        // ============================================================
+        // VALIDASI PATH - UPDATED with AI Modules
+        // ============================================================
+
+        const AI_MODULES_DIR = path.join(PROJECT_ROOT, 'ai-modules');
+
         const normalized = path.normalize(filePath);
         const fullPath = path.resolve(PROJECT_ROOT, normalized);
 
         const isInCommand = fullPath.startsWith(COMMAND_DIR);
         const isInLib = fullPath.startsWith(LIB_DIR);
+        const isInAI = fullPath.startsWith(AI_MODULES_DIR);
 
-        if (!isInCommand && !isInLib) {
+        if (!isInCommand && !isInLib && !isInAI) {
             await ctx.react('❌');
-            return '❌ Path harus di command/ atau lib/';
+            return '❌ Path harus di command/, lib/, atau ai-modules/';
         }
 
         if (!fullPath.endsWith('.js')) {
@@ -164,6 +171,8 @@ export default {
                 } catch (error) {
                     console.log('[EDITCMD] Reload error:', error.message);
                 }
+            } else {
+                resultMessage += `\n\n📦 File berhasil diupdate (library/AI modules).`;
             }
 
             // ✅ REACT SUCCESS

@@ -3,6 +3,21 @@
 
 import config from '../config.js';
 
+// ============================================================
+// NORMALIZE JID - PUBLIC FUNCTION
+// ============================================================
+
+export function normalizeJid(jid) {
+    if (!jid) return '';
+    return String(jid)
+        .trim()
+        .replace(/:\d+(?=@)/, '');
+}
+
+// ============================================================
+// IDENTITY RESOLVER CLASS
+// ============================================================
+
 export class IdentityResolver {
     #ownerNumber = null;
     #botJid = null;
@@ -17,7 +32,7 @@ export class IdentityResolver {
     // ============================================================
 
     setBotJid(botJid) {
-        this.#botJid = this.normalizeJid(botJid);
+        this.#botJid = normalizeJid(botJid);
         console.log('[IDENTITY] Bot JID set:', this.#botJid);
     }
 
@@ -26,19 +41,12 @@ export class IdentityResolver {
     }
 
     // ============================================================
-    // NORMALIZATION - PUBLIC
+    // NORMALIZATION
     // ============================================================
 
     normalizeJid(jid) {
-        if (!jid) return '';
-        return String(jid)
-            .trim()
-            .replace(/:\d+(?=@)/, '');
+        return normalizeJid(jid);
     }
-
-    // ============================================================
-    // NORMALIZATION - PRIVATE
-    // ============================================================
 
     #normalizeNumber(number) {
         if (!number) return '';
@@ -48,14 +56,14 @@ export class IdentityResolver {
     }
 
     #extractNumber(jid) {
-        const normalized = this.normalizeJid(jid);
+        const normalized = normalizeJid(jid);
         if (!normalized) return '';
         const parts = normalized.split('@');
         return this.#normalizeNumber(parts[0]);
     }
 
     #getJidType(jid) {
-        const normalized = this.normalizeJid(jid);
+        const normalized = normalizeJid(jid);
         if (!normalized) return 'unknown';
         if (normalized.endsWith('@lid')) return 'lid';
         if (normalized.endsWith('@s.whatsapp.net')) return 'pn';
@@ -68,38 +76,15 @@ export class IdentityResolver {
     // ============================================================
 
     async resolve(jid, sock) {
-        const normalized = this.normalizeJid(jid);
+        const normalized = normalizeJid(jid);
         if (!normalized) {
-            return { 
-                jid: '', 
-                isOwner: false, 
-                isBot: false,
-                type: 'unknown',
-                number: '',
-                isResolved: false,
-                pn: null,
-                lid: null
-            };
+            return { jid: '', isOwner: false, type: 'unknown' };
         }
-
-        // LOG UNTUK DEBUG
-        console.log('[IDENTITY] Resolving JID:', normalized);
-        console.log('[IDENTITY] Bot JID:', this.#botJid);
-        console.log('[IDENTITY] Owner Number:', this.#ownerNumber);
 
         const type = this.#getJidType(normalized);
         const number = this.#extractNumber(normalized);
-        
-        // CEK: Apakah ini BOT JID?
         const isBot = normalized === this.#botJid || number === this.#extractNumber(this.#botJid);
-        
-        // CEK: Apakah ini OWNER? (Owner = nomor owner ATAU bot sendiri)
         const isOwner = number === this.#ownerNumber || isBot;
-
-        console.log('[IDENTITY] Type:', type);
-        console.log('[IDENTITY] Number:', number);
-        console.log('[IDENTITY] isBot:', isBot);
-        console.log('[IDENTITY] isOwner:', isOwner);
 
         let resolved = {
             jid: normalized,
@@ -112,7 +97,6 @@ export class IdentityResolver {
             lid: null
         };
 
-        // Jika ini adalah PN, coba cari LID-nya
         if (type === 'pn' && sock) {
             try {
                 const lid = await this.#pnToLid(normalized, sock);
@@ -123,14 +107,10 @@ export class IdentityResolver {
                     if (lidNumber === this.#ownerNumber || lid === this.#botJid) {
                         resolved.isOwner = true;
                     }
-                    console.log('[IDENTITY] PN → LID:', lid);
                 }
-            } catch (e) {
-                console.log('[IDENTITY] PN→LID error:', e.message);
-            }
+            } catch (e) {}
         }
 
-        // Jika ini adalah LID, coba cari PN-nya
         if (type === 'lid' && sock) {
             try {
                 const pn = await this.#lidToPn(normalized, sock);
@@ -141,14 +121,10 @@ export class IdentityResolver {
                     if (pnNumber === this.#ownerNumber || pn === this.#botJid) {
                         resolved.isOwner = true;
                     }
-                    console.log('[IDENTITY] LID → PN:', pn);
                 }
-            } catch (e) {
-                console.log('[IDENTITY] LID→PN error:', e.message);
-            }
+            } catch (e) {}
         }
 
-        console.log('[IDENTITY] Final isOwner:', resolved.isOwner);
         return resolved;
     }
 
@@ -172,11 +148,11 @@ export class IdentityResolver {
             sender = key.remoteJidAlt || key.remoteJid || '';
         }
 
-        return this.normalizeJid(sender);
+        return normalizeJid(sender);
     }
 
     // ============================================================
-    // PN ↔ LID MAPPING (via Baileys)
+    // PN ↔ LID MAPPING
     // ============================================================
 
     async #lidToPn(lid, sock) {
@@ -184,11 +160,9 @@ export class IdentityResolver {
             const mapping = sock?.signalRepository?.lidMapping;
             if (mapping && typeof mapping.getPNForLID === 'function') {
                 const pn = await mapping.getPNForLID(lid);
-                return this.normalizeJid(pn);
+                return normalizeJid(pn);
             }
-        } catch (e) {
-            console.log('[IDENTITY] lidToPn error:', e.message);
-        }
+        } catch (e) {}
         return null;
     }
 
@@ -197,16 +171,14 @@ export class IdentityResolver {
             const mapping = sock?.signalRepository?.lidMapping;
             if (mapping && typeof mapping.getLIDForPN === 'function') {
                 const lid = await mapping.getLIDForPN(pn);
-                return this.normalizeJid(lid);
+                return normalizeJid(lid);
             }
-        } catch (e) {
-            console.log('[IDENTITY] pnToLid error:', e.message);
-        }
+        } catch (e) {}
         return null;
     }
 
     // ============================================================
-    // PARTICIPANT RESOLUTION (untuk grup)
+    // PARTICIPANT RESOLUTION
     // ============================================================
 
     findParticipant(metadata, jid) {
@@ -214,20 +186,18 @@ export class IdentityResolver {
             return null;
         }
 
-        const target = this.normalizeJid(jid);
+        const target = normalizeJid(jid);
         if (!target) return null;
 
-        // Direct match
         const direct = metadata.participants.find(p => {
             const candidates = [
                 p?.id, p?.jid, p?.lid, p?.phoneNumber
-            ].map(v => this.normalizeJid(v)).filter(Boolean);
+            ].map(v => normalizeJid(v)).filter(Boolean);
             return candidates.includes(target);
         });
 
         if (direct) return direct;
 
-        // Number match
         const targetNumber = this.#extractNumber(target);
         if (!targetNumber) return null;
 
@@ -248,7 +218,7 @@ export class IdentityResolver {
     }
 
     // ============================================================
-    // OWNER CHECK (SHORTCUT)
+    // OWNER CHECK
     // ============================================================
 
     async isOwner(jid, sock) {

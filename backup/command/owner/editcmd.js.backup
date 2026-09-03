@@ -32,10 +32,10 @@ export default {
             return;
         }
 
-        // ============================================================
-        // PARSE ARGUMEN - PISAHKAN FILEPATH DAN FLAGS
-        // ============================================================
+        // React loading
+        await ctx.react('⏳');
 
+        // Parse argumen
         let filePath = '';
         let isForce = false;
 
@@ -43,12 +43,12 @@ export default {
             if (arg === '--force' || arg === '-force') {
                 isForce = true;
             } else {
-                // Gabungkan semua yang bukan flag sebagai path
                 filePath += (filePath ? ' ' : '') + arg;
             }
         }
 
         if (!filePath) {
+            await ctx.react('❌');
             return (
                 '❌ Masukkan path file!\n\n' +
                 '📌 *Contoh:*\n' +
@@ -59,10 +59,7 @@ export default {
             );
         }
 
-        // ============================================================
-        // VALIDASI PATH
-        // ============================================================
-
+        // Validasi path
         const normalized = path.normalize(filePath);
         const fullPath = path.resolve(PROJECT_ROOT, normalized);
 
@@ -70,26 +67,26 @@ export default {
         const isInLib = fullPath.startsWith(LIB_DIR);
 
         if (!isInCommand && !isInLib) {
+            await ctx.react('❌');
             return '❌ Path harus di command/ atau lib/';
         }
 
         if (!fullPath.endsWith('.js')) {
+            await ctx.react('❌');
             return '❌ File harus .js';
         }
 
         try {
             await fs.access(fullPath);
         } catch {
+            await ctx.react('❌');
             return `❌ File tidak ditemukan: ${filePath}`;
         }
 
-        // ============================================================
-        // PROTEKSI FILE CORE
-        // ============================================================
-
+        // Proteksi file core
         const fileName = path.basename(fullPath);
-
         if (CORE_FILES.includes(fileName) && !isForce) {
+            await ctx.react('⚠️');
             return (
                 `⚠️ *PROTEKSI!*\n\n` +
                 `File *${fileName}* adalah file CORE bot.\n\n` +
@@ -100,10 +97,7 @@ export default {
             );
         }
 
-        // ============================================================
-        // AMBIL SOURCE BARU
-        // ============================================================
-
+        // Ambil source baru
         let newSource = null;
 
         if (quoted) {
@@ -127,29 +121,24 @@ export default {
         }
 
         if (!newSource) {
+            await ctx.react('❌');
             return '❌ Tidak ada source code baru! Reply ke file JS atau teks.';
         }
 
-        // ============================================================
-        // VALIDASI COMMAND
-        // ============================================================
-
+        // Validasi command
         let isCommand = false;
         if (isInCommand) {
             if (!newSource.includes('export default') || !newSource.includes('execute')) {
+                await ctx.react('❌');
                 return '❌ Source tidak valid! Command harus format yang benar.';
             }
             isCommand = true;
         }
 
-        // ============================================================
-        // SIMPAN FILE + BACKUP
-        // ============================================================
-
+        // Simpan file + backup
         try {
             const oldContent = await fs.readFile(fullPath, 'utf8');
             
-            // Backup ke folder backup/
             await fs.mkdir(BACKUP_DIR, { recursive: true });
             const relativePath = path.relative(PROJECT_ROOT, fullPath);
             const backupPath = path.join(BACKUP_DIR, relativePath + '.backup');
@@ -157,7 +146,6 @@ export default {
             await fs.writeFile(backupPath, oldContent, 'utf8');
             console.log('[EDITCMD] Backup saved:', backupPath);
 
-            // Write new content
             await fs.writeFile(fullPath, newSource, 'utf8');
             console.log('[EDITCMD] File updated:', fullPath);
 
@@ -166,7 +154,6 @@ export default {
                 `📁 ${relativePath}\n` +
                 `📦 Backup: backup/${relativePath}.backup`;
 
-            // Reload command jika di command/
             if (isCommand) {
                 try {
                     const commandLoader = ctx.commandLoader || global.commandLoader;
@@ -179,9 +166,12 @@ export default {
                 }
             }
 
+            // ✅ REACT SUCCESS
+            await ctx.react('✅');
             return resultMessage;
 
         } catch (error) {
+            await ctx.react('❌');
             return `❌ Gagal menulis file: ${error.message}`;
         }
     }
